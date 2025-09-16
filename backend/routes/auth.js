@@ -1,22 +1,13 @@
 // routes/auth.js
+import express from 'express';
+import { login, register, getProfile } from '../controllers/authController.js';
+import { authenticate } from '../middleware/authMiddleware.js';
 
-const express = require('express');
-const router = express.Router(); // Create a new router instance
+const router = express.Router();
 
-// --- Define your routes here ---
-// Example: POST /api/auth/login
-router.post('/login', (req, res) => {
-    // Your login logic here...
-    res.status(200).json({ message: "Login successful" });
-});
+router.post('/login', login);
+router.post('/register', register);
+router.get('/profile', authenticate, getProfile);
 
-// Example: POST /api/auth/register
-router.post('/register', (req, res) => {
-    // Your registration logic here...
-    res.status(201).json({ message: "User registered" });
-});
-
-
-// --- This is the most important line ---
-// Make sure to export the router
-module.exports = router;
+// Export the router
+export default router;

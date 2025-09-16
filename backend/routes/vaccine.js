@@ -1,22 +1,24 @@
-// routes/auth.js
+import express from "express";
+import { 
+    addVaccinationRecord,
+    getVaccinationRecords,
+    updateVaccinationRecord,
+    deleteVaccinationRecord
+} from "../controllers/vaccineController.js";
+import { authenticate } from "../middleware/authMiddleware.js";
 
-const express = require('express');
-const router = express.Router(); // Create a new router instance
+const router = express.Router();
 
-// --- Define your routes here ---
-// Example: POST /api/auth/login
-router.post('/login', (req, res) => {
-    // Your login logic here...
-    res.status(200).json({ message: "Login successful" });
-});
+// Route to add a new vaccination record
+router.post("/", authenticate, addVaccinationRecord);
 
-// Example: POST /api/auth/register
-router.post('/register', (req, res) => {
-    // Your registration logic here...
-    res.status(201).json({ message: "User registered" });
-});
+// Route to get all vaccination records for the authenticated user
+router.get("/", authenticate, getVaccinationRecords);
 
+// Route to update a specific vaccination record by ID
+router.put("/:id", authenticate, updateVaccinationRecord);
 
-// --- This is the most important line ---
-// Make sure to export the router
-module.exports = router;
+// Route to delete a specific vaccination record by ID
+router.delete("/:id", authenticate, deleteVaccinationRecord);
+
+export default router;
