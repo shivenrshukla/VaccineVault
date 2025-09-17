@@ -22,11 +22,13 @@ export const addVaccinationRecord = async (req, res) => {
 };
 
 // Get all vaccination records for the authenticated user
+// Get all vaccination records for the authenticated user
 export const getVaccinationRecords = async (req, res) => {
     try {
         const userId = req.user.id;
         const records = await VaccinationRecord.findAll({ where: { userId } });
-        res.status.json(records);
+        // Corrected line:
+        res.status(200).json(records); 
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
