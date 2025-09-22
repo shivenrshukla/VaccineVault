@@ -5,6 +5,8 @@ import '../services/auth_service.dart';
 class HomeScreen extends StatelessWidget {
   final AuthService _authService = AuthService();
 
+  HomeScreen({super.key});
+
   void _logout(BuildContext context) {
     _authService.logout();
     Navigator.pushNamedAndRemoveUntil(

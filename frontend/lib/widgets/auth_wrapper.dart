@@ -6,6 +6,8 @@ import '../screens/home_screen.dart';
 class AuthWrapper extends StatelessWidget {
   final AuthService _authService = AuthService();
 
+  AuthWrapper({super.key});
+
   @override
   Widget build(BuildContext context) {
     return _authService.isLoggedIn ? HomeScreen() : GettingStartedScreen();
