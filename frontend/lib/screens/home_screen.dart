@@ -20,7 +20,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -37,8 +37,8 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             children: [
               // Top Header Section
-              Padding(
-                padding: const EdgeInsets.symmetric(
+              const Padding(
+                padding: EdgeInsets.symmetric(
                   horizontal: 24.0,
                   vertical: 16.0,
                 ),
@@ -54,7 +54,8 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                     CircleAvatar(
-                      backgroundColor: Colors.white.withOpacity(0.3),
+                      // UPDATED HERE
+                      backgroundColor: Color.fromARGB(77, 255, 255, 255), // Colors.white.withOpacity(0.3)
                       child: Icon(Icons.person, color: Colors.white),
                     ),
                   ],
@@ -65,32 +66,32 @@ class HomeScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: ListView(
-                    physics: BouncingScrollPhysics(),
+                    physics: const BouncingScrollPhysics(),
                     children: [
                       _buildInfoCard(
                         title: 'Vaccine Schedule',
                         icon: Icons.calendar_today,
-                        color: Color(0xFF6B46C1),
+                        color: const Color(0xFF6B46C1),
                       ),
                       _buildInfoCard(
                         title: 'Vaccine Records',
                         icon: Icons.assignment_turned_in,
-                        color: Color(0xFF553C9A),
+                        color: const Color(0xFF553C9A),
                       ),
                       _buildInfoCard(
                         title: 'Knowledge Base',
                         icon: Icons.info,
-                        color: Color(0xFF8B5FBF),
+                        color: const Color(0xFF8B5FBF),
                       ),
                       _buildInfoCard(
                         title: 'Chatbot',
                         icon: Icons.chat,
-                        color: Color(0xFFB794F6),
+                        color: const Color(0xFFB794F6),
                       ),
                       _buildInfoCard(
                         title: 'Vaccine Centres near me',
                         icon: Icons.location_on,
-                        color: Color(0xFF9F7AEA),
+                        color: const Color(0xFF9F7AEA),
                       ),
                     ],
                   ),
@@ -103,8 +104,8 @@ class HomeScreen extends StatelessWidget {
       // Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
-        selectedItemColor: Color(0xFF6B46C1),
-        unselectedItemColor: Color(0xFF9CA3AF),
+        selectedItemColor: const Color(0xFF6B46C1),
+        unselectedItemColor: const Color(0xFF9CA3AF),
         showSelectedLabels: false,
         showUnselectedLabels: false,
         items: const <BottomNavigationBarItem>[
@@ -135,16 +136,17 @@ class HomeScreen extends StatelessWidget {
     required Color color,
   }) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16.0),
-      padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+      margin: const EdgeInsets.only(bottom: 16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            // UPDATED HERE
+            color: const Color.fromARGB(13, 0, 0, 0), // Colors.black.withOpacity(0.05)
             blurRadius: 10,
-            offset: Offset(0, 5),
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -154,7 +156,7 @@ class HomeScreen extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF2D3748),

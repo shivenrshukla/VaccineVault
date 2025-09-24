@@ -7,7 +7,7 @@ class GettingStartedScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -16,18 +16,18 @@ class GettingStartedScreen extends StatelessWidget {
         ),
         child: SafeArea(
           child: Padding(
-            padding: EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Spacer(),
+                const Spacer(),
                 // Vaccine Shield Logo
                 Container(
                   width: 150,
                   height: 150,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
@@ -37,7 +37,7 @@ class GettingStartedScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  child: Stack(
+                  child: const Stack(
                     alignment: Alignment.center,
                     children: [
                       // Shield background
@@ -47,24 +47,26 @@ class GettingStartedScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: 40),
+                const SizedBox(height: 40),
                 // App info card
                 Container(
-                  padding: EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    // UPDATED HERE
+                    color: const Color.fromARGB(230, 255, 255, 255), // Colors.white.withOpacity(0.9)
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        // UPDATED HERE
+                        color: const Color.fromARGB(26, 0, 0, 0), // Colors.black.withOpacity(0.1)
                         blurRadius: 20,
-                        offset: Offset(0, 10),
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
                   child: Column(
                     children: [
-                      Text(
+                      const Text(
                         'VaccineVault',
                         style: TextStyle(
                           fontSize: 28,
@@ -72,8 +74,8 @@ class GettingStartedScreen extends StatelessWidget {
                           color: Color(0xFF2D3748),
                         ),
                       ),
-                      SizedBox(height: 8),
-                      Text(
+                      const SizedBox(height: 8),
+                      const Text(
                         'The Ultimate Vaccine Tracking app',
                         style: TextStyle(
                           fontSize: 16,
@@ -81,16 +83,16 @@ class GettingStartedScreen extends StatelessWidget {
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       // Arrow button
                       Container(
                         width: 60,
                         height: 60,
                         decoration: BoxDecoration(
-                          color: Color(0xFF8B5FBF),
+                          color: const Color(0xFF8B5FBF),
                           borderRadius: BorderRadius.circular(30),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.arrow_forward,
                           color: Colors.white,
                           size: 30,
@@ -99,21 +101,22 @@ class GettingStartedScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: 40),
+                const SizedBox(height: 40),
                 // Get Started button
                 Container(
                   width: double.infinity,
                   height: 56,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [Color(0xFF8B5FBF), Color(0xFF6B46C1)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Color(0xFF8B5FBF).withOpacity(0.3),
+                        // UPDATED HERE
+                        color: const Color.fromARGB(77, 139, 95, 191), // Color(0xFF8B5FBF).withOpacity(0.3)
                         blurRadius: 20,
-                        offset: Offset(0, 10),
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
@@ -128,7 +131,7 @@ class GettingStartedScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Get Started',
                       style: TextStyle(
                         fontSize: 18,
@@ -138,7 +141,7 @@ class GettingStartedScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                Spacer(),
+                const Spacer(),
               ],
             ),
           ),

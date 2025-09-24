@@ -1,5 +1,5 @@
-// lib/screens/signup_screen.dart
 import 'package:flutter/material.dart';
+import '../models/user.dart'; // Make sure User model is imported
 import '../services/auth_service.dart';
 import '../utils/validators.dart';
 
@@ -7,16 +7,25 @@ class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  _SignupScreenState createState() => _SignupScreenState();
+  SignupScreenState createState() => SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _authService = AuthService();
+
+  // --- Controllers for all form fields ---
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final AuthService _authService = AuthService();
+  final _dobController = TextEditingController();
+  final _address1Controller = TextEditingController();
+  final _address2Controller = TextEditingController(); // NEW: Controller for Address Line 2
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _pincodeController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -24,15 +33,49 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    // Dispose all controllers to prevent memory leaks
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _dobController.dispose();
+    _address1Controller.dispose();
+    _address2Controller.dispose(); // NEW: Dispose new controller
+    _cityController.dispose();
+    _stateController.dispose();
+    _pincodeController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
   String? _validateConfirmPassword(String? value) {
     return Validators.validateConfirmPassword(value, _passwordController.text);
+  }
+
+  // --- NEW: Function to show the date picker ---
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)), // Default to 18 years ago
+      firstDate: DateTime(1920),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF8B5FBF), // Header background color
+              onPrimary: Colors.white, // Header text color
+              onSurface: Color(0xFF2D3748), // Body text color
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      // Format the date as YYYY-MM-DD
+      _dobController.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+    }
   }
 
   void _signup() async {
@@ -41,40 +84,49 @@ class _SignupScreenState extends State<SignupScreen> {
         _isLoading = true;
       });
 
-      await Future.delayed(Duration(milliseconds: 1000));
+      // Create a User object from the form controllers
+      final newUser = User(
+        username: _usernameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+        dateOfBirth: _dobController.text,
+        addressPart1: _address1Controller.text,
+        // UPDATED: Pass addressPart2, sending null if it's empty
+        addressPart2: _address2Controller.text.isNotEmpty ? _address2Controller.text : null,
+        city: _cityController.text,
+        state: _stateController.text,
+        pinCode: _pincodeController.text,
+        phoneNumber: _phoneController.text,
+      );
 
-      if (_authService.registerUser(
-        _emailController.text,
-        _passwordController.text,
-        _nameController.text,
-      )) {
+      try {
+        await _authService.register(newUser);
+
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Account created successfully! Please login.'),
             backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
           ),
         );
         Navigator.pushReplacementNamed(context, '/login');
-      } else {
+
+      } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('User already exists with this email'),
+            content: Text('Error: ${e.toString().replaceFirst("Exception: ", "")}'),
             backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
           ),
         );
+      } finally {
+        if (mounted) {
+           setState(() {
+            _isLoading = false;
+          });
+        }
       }
-
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
@@ -82,7 +134,7 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -92,41 +144,22 @@ class _SignupScreenState extends State<SignupScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Top section with logo and back button
-              Expanded(
-                flex: 1,
-                child: Padding(
-                  padding: EdgeInsets.all(24.0),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.arrow_back, color: Colors.white),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                      Expanded(
-                        child: Center(
-                          child: Image.asset(
-                            'assets/images/logo.jpeg',
-                            width: 350,
-                            height: 350,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
               ),
-              // Bottom section with signup form
               Expanded(
-                flex: 2,
                 child: Container(
+                  margin: const EdgeInsets.only(top: 20),
                   width: double.infinity,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(30),
@@ -134,133 +167,56 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   ),
                   child: Padding(
-                    padding: EdgeInsets.all(24.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
                     child: Form(
                       key: _formKey,
                       child: SingleChildScrollView(
-                        padding: EdgeInsets.zero,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Sign Up',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2D3748),
-                                  ),
-                                ),
-                                Container(
-                                  width: 80,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'Digital India',
-                                      style: TextStyle(
-                                        fontSize: 8,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 30),
-                            // Name field
-                            _buildTextField(
-                              controller: _nameController,
-                              validator: Validators.validateName,
-                              hint: 'Full Name',
-                              icon: Icons.person_outlined,
-                            ),
-                            SizedBox(height: 16),
-                            // Email field
-                            _buildTextField(
-                              controller: _emailController,
-                              validator: Validators.validateEmail,
-                              hint: 'Email',
-                              icon: Icons.email_outlined,
-                              keyboardType: TextInputType.emailAddress,
-                            ),
-                            SizedBox(height: 16),
-                            // Password field
-                            _buildPasswordField(
-                              controller: _passwordController,
-                              validator: Validators.validatePassword,
-                              hint: 'Password',
-                              obscure: _obscurePassword,
-                              onToggle: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
-                            ),
-                            SizedBox(height: 16),
-                            // Confirm Password field
-                            _buildPasswordField(
-                              controller: _confirmPasswordController,
-                              validator: _validateConfirmPassword,
-                              hint: 'Confirm Password',
-                              obscure: _obscureConfirmPassword,
-                              onToggle: () {
-                                setState(() {
-                                  _obscureConfirmPassword =
-                                      !_obscureConfirmPassword;
-                                });
-                              },
-                            ),
-                            SizedBox(height: 16),
-                            // Already have account link
-                            Center(
+                            const SizedBox(height: 20),
+                             const Text(
+                               'Create Account',
+                               style: TextStyle(
+                                 fontSize: 28,
+                                 fontWeight: FontWeight.bold,
+                                 color: Color(0xFF2D3748),
+                               ),
+                             ),
+                            const SizedBox(height: 20),
+                            _buildTextField(controller: _usernameController, validator: Validators.validateName, hint: 'Username', icon: Icons.person_outlined),
+                            const SizedBox(height: 16),
+                            _buildTextField(controller: _emailController, validator: Validators.validateEmail, hint: 'Email', icon: Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+                            const SizedBox(height: 16),
+                             _buildTextField(controller: _phoneController, validator: Validators.validatePhoneNumber, hint: 'Phone Number', icon: Icons.phone_outlined, keyboardType: TextInputType.phone),
+                            const SizedBox(height: 16),
+                            // UPDATED: Date of Birth field now uses the date picker
+                            _buildTextField(controller: _dobController, validator: Validators.validateDate, hint: 'Date of Birth', icon: Icons.cake_outlined, readOnly: true, onTap: () => _selectDate(context)),
+                            const SizedBox(height: 16),
+                            _buildTextField(controller: _address1Controller, validator: Validators.validateAddress, hint: 'Address Line 1', icon: Icons.home_outlined),
+                            const SizedBox(height: 16),
+                            // NEW: Added Address Line 2 text field
+                            _buildTextField(controller: _address2Controller, validator: (value) => null, hint: 'Address Line 2 (Optional)', icon: Icons.add_road_outlined),
+                            const SizedBox(height: 16),
+                            _buildTextField(controller: _cityController, validator: Validators.validateCity, hint: 'City', icon: Icons.location_city),
+                            const SizedBox(height: 16),
+                            _buildTextField(controller: _stateController, validator: Validators.validateState, hint: 'State', icon: Icons.map_outlined),
+                            const SizedBox(height: 16),
+                            _buildTextField(controller: _pincodeController, validator: Validators.validatePinCode, hint: 'PIN Code', icon: Icons.pin_drop_outlined, keyboardType: TextInputType.number),
+                            const SizedBox(height: 16),
+                            _buildPasswordField(controller: _passwordController, validator: Validators.validatePassword, hint: 'Password', obscure: _obscurePassword, onToggle: () => setState(() => _obscurePassword = !_obscurePassword)),
+                            const SizedBox(height: 16),
+                            _buildPasswordField(controller: _confirmPasswordController, validator: _validateConfirmPassword, hint: 'Confirm Password', obscure: _obscureConfirmPassword, onToggle: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword)),
+                            const SizedBox(height: 30),
+                            _buildGradientButton(),
+                            const SizedBox(height: 16),
+                             Center(
                               child: TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                },
-                                child: Text(
-                                  'Already have an account?',
-                                  style: TextStyle(
-                                    color: Color(0xFF8B5FBF),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Already have an account?', style: TextStyle(color: Color(0xFF8B5FBF), fontWeight: FontWeight.w600)),
                               ),
                             ),
-                            SizedBox(height: 20),
-                            // Sign Up button
-                            _buildGradientButton(),
-                            SizedBox(height: 20),
-                            // OR divider
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Divider(color: Color(0xFFE2E8F0)),
-                                ),
-                                Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 16),
-                                  child: Text(
-                                    'Or',
-                                    style: TextStyle(color: Color(0xFF9CA3AF)),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Divider(color: Color(0xFFE2E8F0)),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 20),
-                            // Google button
-                            _buildGoogleButton(),
-                            // 🔴 removed last extra SizedBox(height: 20)
+                            const SizedBox(height: 20),
                           ],
                         ),
                       ),
@@ -275,63 +231,44 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // --- Helper Widgets ---
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String? Function(String?) validator,
-    required String hint,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
+  // UPDATED: Helper widget now supports readOnly and onTap for the date picker
+  Widget _buildTextField({required TextEditingController controller, required String? Function(String?) validator, required String hint, required IconData icon, TextInputType keyboardType = TextInputType.text, bool readOnly = false, VoidCallback? onTap}) {
     return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFFF7FAFC),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFFF7FAFC), borderRadius: BorderRadius.circular(12)),
       child: TextFormField(
         controller: controller,
         validator: validator,
         keyboardType: keyboardType,
+        readOnly: readOnly,
+        onTap: onTap,
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: Color(0xFF8B5FBF)),
+          prefixIcon: Icon(icon, color: const Color(0xFF8B5FBF)),
           hintText: hint,
-          hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
+          hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       ),
     );
   }
 
-  Widget _buildPasswordField({
-    required TextEditingController controller,
-    required String? Function(String?) validator,
-    required String hint,
-    required bool obscure,
-    required VoidCallback onToggle,
-  }) {
+  Widget _buildPasswordField({required TextEditingController controller, required String? Function(String?) validator, required String hint, required bool obscure, required VoidCallback onToggle}) {
     return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFFF7FAFC),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFFF7FAFC), borderRadius: BorderRadius.circular(12)),
       child: TextFormField(
         controller: controller,
         validator: validator,
         obscureText: obscure,
         decoration: InputDecoration(
-          prefixIcon: Icon(Icons.lock_outlined, color: Color(0xFF8B5FBF)),
+          prefixIcon: const Icon(Icons.lock_outlined, color: Color(0xFF8B5FBF)),
           hintText: hint,
-          hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
+          hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
           suffixIcon: IconButton(
-            icon: Icon(
-              obscure ? Icons.visibility_off : Icons.visibility,
-              color: Color(0xFF9CA3AF),
-            ),
+            icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF9CA3AF)),
             onPressed: onToggle,
           ),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       ),
     );
@@ -342,76 +279,18 @@ class _SignupScreenState extends State<SignupScreen> {
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF8B5FBF), Color(0xFF6B46C1)],
-        ),
+        gradient: const LinearGradient(colors: [Color(0xFF8B5FBF), Color(0xFF6B46C1)]),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0xFF8B5FBF).withOpacity(0.3),
-            blurRadius: 20,
-            offset: Offset(0, 10),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: const Color.fromARGB(77, 139, 95, 191), blurRadius: 20, offset: const Offset(0, 10))],
       ),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _signup,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
         child: _isLoading
-            ? CircularProgressIndicator(color: Colors.white)
-            : Text(
-                'Sign Up',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildGoogleButton() {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFFE2E8F0)),
-      ),
-      child: ElevatedButton.icon(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Google Sign Up - Coming Soon!'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF2D3748),
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        icon: Text(
-          'G',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
-        ),
-        label: Text(
-          'Google',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text('Sign Up', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
       ),
     );
   }
 }
+

@@ -3,7 +3,6 @@ import 'screens/getting_started_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
-import 'widgets/auth_wrapper.dart';
 
 void main() {
   runApp(MyApp());

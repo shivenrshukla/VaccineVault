@@ -1,19 +1,42 @@
 class User {
-  final String email;
-  final String name;
+  // All fields from your Node.js model
+  final String username;
   final String password;
+  final String email;
+  final String dateOfBirth; // Use String in 'YYYY-MM-DD' format
+  final String addressPart1;
+  final String? addressPart2; // Nullable
+  final String city;
+  final String state;
+  final String pinCode;
+  final String phoneNumber;
 
-  User({required this.email, required this.name, required this.password});
+  User({
+    required this.username,
+    required this.password,
+    required this.email,
+    required this.dateOfBirth,
+    required this.addressPart1,
+    this.addressPart2,
+    required this.city,
+    required this.state,
+    required this.pinCode,
+    required this.phoneNumber,
+  });
 
+  // This method prepares the data to be sent for registration
   Map<String, dynamic> toJson() {
-    return {'email': email, 'name': name, 'password': password};
-  }
-
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      email: json['email'],
-      name: json['name'],
-      password: json['password'],
-    );
+    return {
+      'username': username,
+      'password': password,
+      'email': email,
+      'dateOfBirth': dateOfBirth,
+      'addressPart1': addressPart1,
+      'addressPart2': addressPart2,
+      'city': city,
+      'state': state,
+      'pinCode': pinCode,
+      'phoneNumber': phoneNumber,
+    };
   }
 }
