@@ -13,3 +13,4 @@ coverage/
 *.local
 *.log
 *.tsbuildinfo
+config/firebase-service-account.json

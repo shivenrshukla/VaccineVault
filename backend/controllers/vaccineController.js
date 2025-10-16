@@ -1,78 +1,117 @@
-import VaccinationRecord from "../models/VaccinationRecord.js";
+import User from "../models/User.js"
+import Vaccine from "../models/Vaccine.js"
+import {Op} from "sequelize";
+import UserVaccine from "../models/userVaccine.js";
 
-// Create a new vaccination record
-export const addVaccinationRecord = async (req, res) => {
+export const getRecommendedVaccines = async (req, res) => {
     try {
-        const { vaccineName, doseNumber, vaccinationDate, healthcareProvider, location } = req.body;
         const userId = req.user.id;
+        const user = await User.findByPk(userId);
 
-        const newRecord = await VaccinationRecord.create({
-            userId,
-            vaccineName,
-            doseNumber,
-            vaccinationDate,
-            healthcareProvider,
-            location
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const dob = new Date(user.dateOfBirth);
+        const today = new Date();
+
+        // --- Age Calculation (This part is correct) ---
+        let ageInMonths = (today.getFullYear() - dob.getFullYear()) * 12;
+        ageInMonths += today.getMonth() - dob.getMonth();
+        if (today.getDate() < dob.getDate()) {
+            ageInMonths--;
+        }
+
+        const applicableVaccines = await Vaccine.findAll({
+            where: {
+                minAgeMonths: { [Op.lte]: ageInMonths },
+                [Op.or]: [
+                    { maxAgeMonths: { [Op.gte]: ageInMonths } },
+                    { maxAgeMonths: null }
+                ]
+            }
         });
 
-        res.status(201).json(newRecord);
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-};
-
-// Get all vaccination records for the authenticated user
-// Get all vaccination records for the authenticated user
-export const getVaccinationRecords = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const records = await VaccinationRecord.findAll({ where: { userId } });
-        // Corrected line:
-        res.status(200).json(records); 
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-};
-
-// Update a vaccination record by ID
-export const updateVaccinationRecord = async (req, res) => {
-    try {
-        const recordId = req.params.id;
-        const userId = req.user.id;
-        const { vaccineName, doseNumber, vaccinationDate, healthcareProvider, location } = req.body;
-
-        const record = await VaccinationRecord.findOne({ where: { id: recordId, userId } });
-        if (!record) {
-            return res.status(404).json({ message: "Record not found" });
+        for (const vaccine of applicableVaccines) {
+            await UserVaccine.findOrCreate({
+                where: {
+                    userId: userId,
+                    vaccineId: vaccine.id,
+                },
+                defaults: {
+                    userId: userId,
+                    vaccineId: vaccine.id,
+                    status: 'pending',
+                    
+                    // --- THIS IS THE CORRECTED LOGIC ---
+                    // Calculate the first due date by adding the minimum eligibility age (in months)
+                    // to the user's date of birth.
+                    nextDueDate: new Date(new Date(user.dateOfBirth).setMonth(new Date(user.dateOfBirth).getMonth() + vaccine.minAgeMonths))
+                }
+            });
         }
 
-        record.vaccineName = vaccineName || record.vaccineName;
-        record.doseNumber = doseNumber || record.doseNumber;
-        record.vaccinationDate = vaccinationDate || record.vaccinationDate;
-        record.healthcareProvider = healthcareProvider || record.healthcareProvider;
-        record.location = location || record.location;
+        const pendingVaccines = await UserVaccine.findAll({
+            where: { userId, status: 'pending' },
+            include: [{ model: Vaccine, attributes: ['name', 'diseaseProtectedAgainst'] }],
+            order: [['nextDueDate', 'ASC']]
+        });
+        
+        res.status(200).json(pendingVaccines);
 
-        await record.save();
-        res.status(200).json(record);
     } catch (error) {
+        console.error("Error fetching recommended vaccines:", error);
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
-// Delete a vaccination record by ID
-export const deleteVaccinationRecord = async (req, res) => {
-    try {
-        const recordId = req.params.id;
+export const updateVaccinationStatus = async(req,res)=>{
+    try{
+        const {UserVaccineId} = req.params;
         const userId = req.user.id;
+        const { hasTaken } = req.body;
 
-        const record = await VaccinationRecord.findOne({ where: { id: recordId, userId } });
-        if (!record) {
-            return res.status(404).json({ message: "Record not found" });
+        if (typeof hasTaken !== 'boolean' || !hasTaken) {
+            return res.status(400).json({ message: "Invalid input: hasTaken must be true" });
         }
 
-        await record.destroy();
-        res.status(200).json({ message: "Record deleted successfully" });
-    } catch (error) {
+        const userVaccine = await UserVaccine.findOne({
+            where : {id:userVaccineId,userId},
+            include:[Vaccine]
+        });
+
+        if (!userVaccine) {
+            return res.status(404).json({ message: "Vaccination record not found for this user." });
+        }
+
+        userVaccine.completedDoses += 1;
+        userVaccine.lastDoseDate = new Date();
+
+        const vaccineInfo = userVaccine.Vaccine;
+        const totalDoses = vaccineInfo.schedule.doses.length;
+
+        if (userVaccine.completedDoses >= totalDoses) {
+            if (vaccineInfo.boosterIntervalYears) {
+                const nextBoosterDate = new Date(userVaccine.lastDoseDate);
+                nextBoosterDate.setFullYear(nextBoosterDate.getFullYear() + vaccineInfo.boosterIntervalYears);
+                userVaccine.nextDueDate = nextBoosterDate;
+                userVaccine.status = 'pending'; // Stays pending for the next booster
+            } else {
+                userVaccine.status = 'completed';
+                userVaccine.nextDueDate = null;
+            }
+        } else {
+            const intervalMonths = vaccineInfo.schedule.doses[userVaccine.completedDoses] - vaccineInfo.schedule.doses[userVaccine.completedDoses - 1];
+            const nextDoseDate = new Date(userVaccine.lastDoseDate);
+            nextDoseDate.setMonth(nextDoseDate.getMonth() + intervalMonths);
+            userVaccine.nextDueDate = nextDoseDate;
+        }
+
+        await userVaccine.save();
+        res.status(200).json(userVaccine);
+
+    }catch(error){
+        console.error("Error updating vaccination status:", error);
         res.status(500).json({ message: "Server error", error: error.message });
     }
-};
+}

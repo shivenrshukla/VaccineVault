@@ -38,15 +38,12 @@ class HomeScreen extends StatelessWidget {
             children: [
               // Top Header Section
               const Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 16.0,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '👋 Hi Julia!', // Placeholder name
+                      '👋 Hi Rayyan!', // Placeholder name
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -55,7 +52,12 @@ class HomeScreen extends StatelessWidget {
                     ),
                     CircleAvatar(
                       // UPDATED HERE
-                      backgroundColor: Color.fromARGB(77, 255, 255, 255), // Colors.white.withOpacity(0.3)
+                      backgroundColor: Color.fromARGB(
+                        77,
+                        255,
+                        255,
+                        255,
+                      ), // Colors.white.withOpacity(0.3)
                       child: Icon(Icons.person, color: Colors.white),
                     ),
                   ],
@@ -144,7 +146,12 @@ class HomeScreen extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             // UPDATED HERE
-            color: const Color.fromARGB(13, 0, 0, 0), // Colors.black.withOpacity(0.05)
+            color: const Color.fromARGB(
+              13,
+              0,
+              0,
+              0,
+            ), // Colors.black.withOpacity(0.05)
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
