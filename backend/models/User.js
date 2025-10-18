@@ -52,7 +52,7 @@ const User = sequelize.define('User', {
         type: DataTypes.STRING,
         allowNull: false,
         validate: {
-            is: /^[0-9]{6}$/ // Validates a 6-digit pin code
+            is: /^[0-9]{6}$/
         }
     },
     phoneNumber: {
@@ -60,8 +60,13 @@ const User = sequelize.define('User', {
         allowNull: false,
         unique: true,
         validate: {
-            is: /^[0-9]{10}$/ // Validates a 10-digit phone number
+            is: /^[0-9]{10}$/
         }
+    },
+    // --- THIS IS THE MISSING FIELD ---
+    pushNotificationToken: {
+        type: DataTypes.STRING,
+        allowNull: true // Can be null if the user doesn't grant permission
     }
 }, {
     timestamps: true

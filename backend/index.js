@@ -1,14 +1,26 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import authRoutes from './routes/auth.js';
 import educationContentRoutes from './routes/educationalContent.js';
 import vaccineRoutes from './routes/vaccine.js';
-import sequelize from './config/db.js';
+import sequelize from './config/db.js'; // Import sequelize instance
+import testRoutes from './routes/testRoutes.js';
 
+import {startReminderService} from './services/reminderService.js'
 const app = express();
-dotenv.config();
+
+// --- ADD THIS DATABASE CONNECTION TEST ---
+const testDbConnection = async () => {
+    try {
+        await sequelize.authenticate();
+        console.log('✅ Connection to the database has been established successfully.');
+    } catch (error) {
+        console.error('❌ Unable to connect to the database:', error);
+    }
+};
+testDbConnection();
 
 // Middleware
 app.use(cors());
@@ -18,25 +30,15 @@ app.use(bodyParser.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/educational-content', educationContentRoutes);
 app.use('/api/vaccines', vaccineRoutes);
+app.use('/api/test',testRoutes);
 
 const PORT = process.env.PORT || 5000;
+startReminderService();
+// await sequelize.sync({ force: true });
 
-// Connect to the database and start the server
-const startServer = async () => {
-    try {
-        await sequelize.authenticate();
-        console.log("Database connected successfully.");
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
 
-        await sequelize.sync();
-        console.log("Database synchronized.");
+// how to start db : psql -d vaccinevault
 
-        app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-        });
-    } catch (error) {
-        console.error("Unable to connect to the database:", error);
-        process.exit(1);
-    }
-};
-
-startServer();

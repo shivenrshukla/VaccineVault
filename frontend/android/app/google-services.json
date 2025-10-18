@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "859116243737",
+    "project_id": "vaccinevault-f857d",
+    "storage_bucket": "vaccinevault-f857d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:859116243737:android:d7f2aefe78ca4b93f65388",
+        "android_client_info": {
+          "package_name": "com.example.vaccinevault"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "859116243737-408m27e91vgqmn9p1f9mokjba6aru1tv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfLQAQ5j0dHVLRxghak6fKQdwv0XMShto"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "859116243737-408m27e91vgqmn9p1f9mokjba6aru1tv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

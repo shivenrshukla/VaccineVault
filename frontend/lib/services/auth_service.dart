@@ -5,7 +5,7 @@ import '../models/user.dart';
 
 class AuthService {
   // 👇 IMPORTANT: Replace with your actual local IP address
-  static const String _baseUrl = 'http://192.168.0.103:5050/api/auth';
+  static const String _baseUrl = 'http://10.10.46.178:5050/api/auth';
   static const String _tokenKey = 'jwt_token';
 
   /// --- Private Helper Methods ---
@@ -51,10 +51,7 @@ class AuthService {
     final response = await http.post(
       Uri.parse('$_baseUrl/login'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
+      body: jsonEncode({'email': email, 'password': password}),
     );
 
     if (response.statusCode == 200) {
