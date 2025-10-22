@@ -137,7 +137,7 @@ export const findCenters = async (req, res) => {
     // --------------------------------------------------------------------
     // STEP 2: Use MapmyIndia Search API with Coordinates and Radius
     // --------------------------------------------------------------------
-    const searchQuery = "hospital vaccination center clinic healthcare";
+    const searchQuery = "hospital vaccination clinic healthcare";
     console.log(`[DEBUG] Step 2: Searching MapmyIndia for "${searchQuery}" near ${lat},${lng} within 10km`);
 
     const nearbyResponse = await axios.get(MAPMYINDIA_SEARCH_URL, {

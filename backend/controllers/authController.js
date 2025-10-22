@@ -15,7 +15,7 @@ export const generateToken = (user) => {
 export const register = async (req, res) => {
     try {
         const { username, password, email, gender, dateOfBirth, addressPart1, addressPart2, city, state, pinCode, phoneNumber } = req.body;
-
+        console.log(username, password, email, gender, dateOfBirth, addressPart1, addressPart2, city, state, pinCode, phoneNumber)
         // Basic validation
         if (!username || !password || !email || !gender || !dateOfBirth || !addressPart1 || !city || !state || !pinCode || !phoneNumber) {
             return res.status(400).json({ message: "All required fields must be filled" });
