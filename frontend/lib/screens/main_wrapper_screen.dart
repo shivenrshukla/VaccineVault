@@ -16,7 +16,7 @@ class _MainWrapperScreenState extends State<MainWrapperScreen> {
   final AuthService _authService = AuthService();
 
   // List of pages to be displayed
-  static const List<Widget> _widgetOptions = <Widget>[
+  static List<Widget> _widgetOptions = <Widget>[
     HomeScreen(), // Your existing HomeScreen
     StatsScreen(),
     NotificationsScreen(),
