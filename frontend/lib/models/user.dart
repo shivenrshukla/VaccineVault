@@ -4,6 +4,7 @@ class User {
   final String password;
   final String email;
   final String dateOfBirth; // Use String in 'YYYY-MM-DD' format
+  final String gender;
   final String addressPart1;
   final String? addressPart2; // Nullable
   final String city;
@@ -16,6 +17,7 @@ class User {
     required this.password,
     required this.email,
     required this.dateOfBirth,
+    required this.gender,
     required this.addressPart1,
     this.addressPart2,
     required this.city,
@@ -31,6 +33,7 @@ class User {
       'password': password,
       'email': email,
       'dateOfBirth': dateOfBirth,
+      "gender": gender,
       'addressPart1': addressPart1,
       'addressPart2': addressPart2,
       'city': city,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vaccinevault/screens/main_wrapper_screen.dart';
 import 'screens/getting_started_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -25,7 +26,7 @@ class MyApp extends StatelessWidget {
         '/getting-started': (context) => GettingStartedScreen(),
         '/login': (context) => LoginScreen(),
         '/signup': (context) => SignupScreen(),
-        '/home': (context) => HomeScreen(),
+        '/home': (context) => MainWrapperScreen(),
       },
     );
   }
