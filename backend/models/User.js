@@ -24,6 +24,10 @@ const User = sequelize.define('User', {
             isEmail: true
         }
     },
+    gender: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
     role: {
         type: DataTypes.ENUM('admin', 'user'),
         defaultValue: 'user'
@@ -63,10 +67,15 @@ const User = sequelize.define('User', {
             is: /^[0-9]{10}$/
         }
     },
-    // --- THIS IS THE MISSING FIELD ---
     pushNotificationToken: {
         type: DataTypes.STRING,
-        allowNull: true // Can be null if the user doesn't grant permission
+        allowNull: true
+    },
+    // --- New Field for Medical Conditions ---
+    medicalConditions: {
+        type: DataTypes.JSON,
+        allowNull: true, // Can be null if user has no conditions
+        defaultValue: [] // Default empty array
     }
 }, {
     timestamps: true

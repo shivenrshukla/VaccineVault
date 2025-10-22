@@ -7,10 +7,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .DS_Store
-.vscode/
+*.vscode/
 .idea/
 coverage/
 *.local
 *.log
 *.tsbuildinfo
 config/firebase-service-account.json
+config/config.json

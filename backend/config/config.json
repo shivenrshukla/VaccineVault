@@ -1,21 +1,21 @@
 {
   "development": {
-    "username": "rayyansiddiqui",
-    "password":"",
+    "username": "shivenshukla",
+    "password":"shiven29@postgresql",
     "database": "vaccinevault",
     "host": "127.0.0.1",
     "dialect": "postgres"
   },
   "test": {
-    "username": "rayyansiddiqui",
-    "password":"",
+    "username": "shivenshukla",
+    "password": "shiven29@postgresql",
     "database": "vaccinevault",
     "host": "127.0.0.1",
     "dialect": "postgres"
   },
   "production": {
-    "username": "rayyansiddiqui",
-    "password":"",
+    "username": "shivenshukla",
+    "password": "shiven29@postgresql",
     "database": "vaccinevault",
     "host": "127.0.0.1",
     "dialect": "postgres"
