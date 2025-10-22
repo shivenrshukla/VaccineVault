@@ -3,7 +3,6 @@ import 'package:vaccinevault/screens/main_wrapper_screen.dart';
 import 'screens/getting_started_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
-import 'screens/home_screen.dart';
 
 void main() {
   runApp(MyApp());

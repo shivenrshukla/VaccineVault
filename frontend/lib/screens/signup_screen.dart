@@ -321,7 +321,7 @@ class SignupScreenState extends State<SignupScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: DropdownButtonFormField<String>(
-        value: _selectedGender,
+        initialValue: _selectedGender,
         decoration: const InputDecoration(
           prefixIcon: Icon(Icons.wc_outlined, color: Color(0xFF8B5FBF)),
           hintText: 'Gender',
