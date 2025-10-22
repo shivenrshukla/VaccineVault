@@ -18,7 +18,7 @@ const allVaccines = [
   { name: 'Hepatitis A Vaccine', diseaseProtectedAgainst: 'Hepatitis A', minAgeMonths: 12, maxAgeMonths: null, schedule: JSON.stringify({ "doses": [0, 6] }), boosterIntervalYears: null, isUIP: false },
   { name: 'Typhoid Conjugate Vaccine (TCV)', diseaseProtectedAgainst: 'Typhoid Fever', minAgeMonths: 6, maxAgeMonths: null, schedule: JSON.stringify({ "doses": [0] }), boosterIntervalYears: 3, isUIP: false },
   { name: 'Influenza (Flu) Vaccine', diseaseProtectedAgainst: 'Influenza', minAgeMonths: 6, maxAgeMonths: null, schedule: JSON.stringify({ "doses": [0] }), boosterIntervalYears: 1, isUIP: false },
-  { name: 'HPV (Human Papillomavirus) Vaccine', diseaseProtectedAgainst: 'Cervical Cancer', minAgeMonths: 108, maxAgeMonths: 540, schedule: JSON.stringify({ "doses": [0, 6] }), boosterIntervalYears: null, isUIP: false },
+  { name: 'HPV (Human Papillomavirus) Vaccine', diseaseProtectedAgainst: 'Cervical Cancer(females), Genital warts(males)', minAgeMonths: 108, maxAgeMonths: 540, schedule: JSON.stringify({ "doses": [0, 6] }), boosterIntervalYears: null, isUIP: false },
   { name: 'Meningococcal Vaccine', diseaseProtectedAgainst: 'Meningococcal Meningitis', minAgeMonths: 2, maxAgeMonths: null, schedule: JSON.stringify({ "doses": [0] }), boosterIntervalYears: 5, isUIP: false },
   // --- Travel / Special Purpose Vaccines ---
   { name: 'Japanese Encephalitis Vaccine', diseaseProtectedAgainst: 'Japanese Encephalitis', minAgeMonths: 9, maxAgeMonths: null, schedule: JSON.stringify({ "doses": [0, 1] }), boosterIntervalYears: null, isUIP: false },

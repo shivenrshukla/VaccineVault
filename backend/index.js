@@ -5,6 +5,7 @@ import bodyParser from 'body-parser';
 import authRoutes from './routes/auth.js';
 import educationContentRoutes from './routes/educationalContent.js';
 import vaccineRoutes from './routes/vaccine.js';
+import findRoutes from './routes/findRoutes.js';
 import sequelize from './config/db.js'; // Import sequelize instance
 import testRoutes from './routes/testRoutes.js';
 
@@ -31,6 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/educational-content', educationContentRoutes);
 app.use('/api/vaccines', vaccineRoutes);
 app.use('/api/test',testRoutes);
+app.use('/api/find', findRoutes);
 
 const PORT = process.env.PORT || 5000;
 startReminderService();

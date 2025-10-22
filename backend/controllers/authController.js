@@ -14,10 +14,10 @@ export const generateToken = (user) => {
 // Register a new user
 export const register = async (req, res) => {
     try {
-        const { username, password, email, dateOfBirth, addressPart1, addressPart2, city, state, pinCode, phoneNumber } = req.body;
-
+        const { username, password, email, gender, dateOfBirth, addressPart1, addressPart2, city, state, pinCode, phoneNumber } = req.body;
+        console.log(username, password, email, gender, dateOfBirth, addressPart1, addressPart2, city, state, pinCode, phoneNumber)
         // Basic validation
-        if (!username || !password || !email || !dateOfBirth || !addressPart1 || !city || !state || !pinCode || !phoneNumber) {
+        if (!username || !password || !email || !gender || !dateOfBirth || !addressPart1 || !city || !state || !pinCode || !phoneNumber) {
             return res.status(400).json({ message: "All required fields must be filled" });
         }
 
@@ -38,6 +38,7 @@ export const register = async (req, res) => {
             username,
             password, // In a real app, make sure to hash the password before storing
             email,
+            gender,
             dateOfBirth,
             addressPart1,
             addressPart2,

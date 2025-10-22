@@ -1,20 +1,19 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+// REMOVE: AuthService import (it's in the wrapper)
+
+// ADD imports for your new screens
+import 'vaccine_schedule_screen.dart';
+import 'vaccine_records_screen.dart';
+import 'knowledge_base_screen.dart';
+import 'chatbot_screen.dart';
+import 'vaccine_centres_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  final AuthService _authService = AuthService();
+  // REMOVE: AuthService instance
+  // REMOVE: _logout method
 
-  HomeScreen({super.key});
-
-  void _logout(BuildContext context) {
-    _authService.logout();
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/getting-started',
-      (route) => false,
-    );
-  }
+  const HomeScreen({super.key}); // UPDATED constructor
 
   @override
   Widget build(BuildContext context) {
@@ -25,25 +24,25 @@ class HomeScreen extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF8B5FBF), // Top purple color
-              Color(0xFFB794F6), // Middle purple color
-              Color(0xFFD6BCFA), // Lighter middle color
-              Color(0xFFFFB3BA), // Pinkish bottom color
+              Color(0xFF8B5FBF),
+              Color(0xFFB794F6),
+              Color(0xFFD6BCFA),
+              Color(0xFFFFB3BA),
             ],
-            stops: [0.0, 0.4, 0.7, 1.0], // Controls the gradient spread
+            stops: [0.0, 0.4, 0.7, 1.0],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              // Top Header Section
+              // Top Header Section (no change)
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '👋 Hi Rayyan!', // Placeholder name
+                      '👋 Hi Rayyan!',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -51,13 +50,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                     CircleAvatar(
-                      // UPDATED HERE
-                      backgroundColor: Color.fromARGB(
-                        77,
-                        255,
-                        255,
-                        255,
-                      ), // Colors.white.withOpacity(0.3)
+                      backgroundColor: Color.fromARGB(77, 255, 255, 255),
                       child: Icon(Icons.person, color: Colors.white),
                     ),
                   ],
@@ -70,30 +63,79 @@ class HomeScreen extends StatelessWidget {
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
                     children: [
+                      // UPDATED: Added onTap handlers
                       _buildInfoCard(
+                        context: context,
                         title: 'Vaccine Schedule',
                         icon: Icons.calendar_today,
                         color: const Color(0xFF6B46C1),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const VaccineScheduleScreen(),
+                            ),
+                          );
+                        },
                       ),
                       _buildInfoCard(
+                        context: context,
                         title: 'Vaccine Records',
                         icon: Icons.assignment_turned_in,
                         color: const Color(0xFF553C9A),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const VaccineRecordsScreen(),
+                            ),
+                          );
+                        },
                       ),
                       _buildInfoCard(
+                        context: context,
                         title: 'Knowledge Base',
                         icon: Icons.info,
                         color: const Color(0xFF8B5FBF),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const KnowledgeBaseScreen(),
+                            ),
+                          );
+                        },
                       ),
                       _buildInfoCard(
+                        context: context,
                         title: 'Chatbot',
                         icon: Icons.chat,
                         color: const Color(0xFFB794F6),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ChatbotScreen(),
+                            ),
+                          );
+                        },
                       ),
                       _buildInfoCard(
+                        context: context,
                         title: 'Vaccine Centres near me',
                         icon: Icons.location_on,
                         color: const Color(0xFF9F7AEA),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const VaccineCentresScreen(),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -103,75 +145,53 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
-      // Bottom Navigation Bar
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF6B46C1),
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Stats'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Notifications',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
-        onTap: (index) {
-          // Placeholder for navigation logic
-          if (index == 3) {
-            _logout(context);
-          }
-        },
-      ),
+      // REMOVE the entire bottomNavigationBar property
     );
   }
 
   Widget _buildInfoCard({
+    required BuildContext context,
     required String title,
     required IconData icon,
     required Color color,
+    VoidCallback? onTap, // UPDATED: Add onTap callback
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      child: InkWell(
+        // UPDATED: Wrap with InkWell for ripple effect
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            // UPDATED HERE
-            color: const Color.fromARGB(
-              13,
-              0,
-              0,
-              0,
-            ), // Colors.black.withOpacity(0.05)
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2D3748),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color.fromARGB(13, 0, 0, 0),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
-            ),
+            ],
           ),
-          Icon(icon, size: 40, color: color),
-        ],
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2D3748),
+                  ),
+                ),
+              ),
+              Icon(icon, size: 40, color: color),
+            ],
+          ),
+        ),
       ),
     );
   }

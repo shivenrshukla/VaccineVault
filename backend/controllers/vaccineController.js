@@ -15,7 +15,7 @@ export const getRecommendedVaccines = async (req, res) => {
         const dob = new Date(user.dateOfBirth);
         const today = new Date();
 
-        // --- Age Calculation (This part is correct) ---
+        // Age Calculation
         let ageInMonths = (today.getFullYear() - dob.getFullYear()) * 12;
         ageInMonths += today.getMonth() - dob.getMonth();
         if (today.getDate() < dob.getDate()) {
@@ -42,22 +42,32 @@ export const getRecommendedVaccines = async (req, res) => {
                     userId: userId,
                     vaccineId: vaccine.id,
                     status: 'pending',
-                    
-                    // --- THIS IS THE CORRECTED LOGIC ---
-                    // Calculate the first due date by adding the minimum eligibility age (in months)
-                    // to the user's date of birth.
-                    nextDueDate: new Date(new Date(user.dateOfBirth).setMonth(new Date(user.dateOfBirth).getMonth() + vaccine.minAgeMonths))
+                    completedDoses: 0, // ✅ Initialize completedDoses
+                    nextDueDate: new Date(
+                        new Date(user.dateOfBirth).setMonth(
+                            new Date(user.dateOfBirth).getMonth() + vaccine.minAgeMonths
+                        )
+                    )
                 }
             });
         }
 
-        const pendingVaccines = await UserVaccine.findAll({
-            where: { userId, status: 'pending' },
-            include: [{ model: Vaccine, attributes: ['name', 'diseaseProtectedAgainst'] }],
-            order: [['nextDueDate', 'ASC']]
+        // ✅ FIXED: Return ALL vaccines, not just pending ones
+        const allVaccines = await UserVaccine.findAll({
+            where: { userId }, // Remove status filter
+            include: [{ 
+                model: Vaccine, 
+                attributes: ['name', 'diseaseProtectedAgainst', 'schedule'] // ✅ Include schedule
+            }],
+            order: [
+                ['status', 'ASC'], // Pending first
+                ['nextDueDate', 'ASC'] // Then by date
+            ]
         });
+
+        console.log(`Returning ${allVaccines.length} vaccines for user ${userId}`);
         
-        res.status(200).json(pendingVaccines);
+        res.status(200).json(allVaccines);
 
     } catch (error) {
         console.error("Error fetching recommended vaccines:", error);
@@ -65,53 +75,122 @@ export const getRecommendedVaccines = async (req, res) => {
     }
 };
 
-export const updateVaccinationStatus = async(req,res)=>{
-    try{
-        const {UserVaccineId} = req.params;
-        const userId = req.user.id;
-        const { hasTaken } = req.body;
+export const updateVaccinationStatus = async (req, res) => {
+  try {
+    const { userVaccineId } = req.params;
+    const { hasTaken } = req.body;
+    const userId = req.user.id;
 
-        if (typeof hasTaken !== 'boolean' || !hasTaken) {
-            return res.status(400).json({ message: "Invalid input: hasTaken must be true" });
-        }
+    console.log('Update request received:', {
+      userVaccineId,
+      hasTaken,
+      userId
+    });
 
-        const userVaccine = await UserVaccine.findOne({
-            where : {id:userVaccineId,userId},
-            include:[Vaccine]
-        });
-
-        if (!userVaccine) {
-            return res.status(404).json({ message: "Vaccination record not found for this user." });
-        }
-
-        userVaccine.completedDoses += 1;
-        userVaccine.lastDoseDate = new Date();
-
-        const vaccineInfo = userVaccine.Vaccine;
-        const totalDoses = vaccineInfo.schedule.doses.length;
-
-        if (userVaccine.completedDoses >= totalDoses) {
-            if (vaccineInfo.boosterIntervalYears) {
-                const nextBoosterDate = new Date(userVaccine.lastDoseDate);
-                nextBoosterDate.setFullYear(nextBoosterDate.getFullYear() + vaccineInfo.boosterIntervalYears);
-                userVaccine.nextDueDate = nextBoosterDate;
-                userVaccine.status = 'pending'; // Stays pending for the next booster
-            } else {
-                userVaccine.status = 'completed';
-                userVaccine.nextDueDate = null;
-            }
-        } else {
-            const intervalMonths = vaccineInfo.schedule.doses[userVaccine.completedDoses] - vaccineInfo.schedule.doses[userVaccine.completedDoses - 1];
-            const nextDoseDate = new Date(userVaccine.lastDoseDate);
-            nextDoseDate.setMonth(nextDoseDate.getMonth() + intervalMonths);
-            userVaccine.nextDueDate = nextDoseDate;
-        }
-
-        await userVaccine.save();
-        res.status(200).json(userVaccine);
-
-    }catch(error){
-        console.error("Error updating vaccination status:", error);
-        res.status(500).json({ message: "Server error", error: error.message });
+    // Validate required fields
+    if (!userVaccineId) {
+      return res.status(400).json({
+        message: 'Vaccine record ID is required'
+      });
     }
-}
+
+    if (hasTaken === undefined) {
+      return res.status(400).json({
+        message: 'hasTaken field is required'
+      });
+    }
+
+    // Find the user's vaccine record
+    const userVaccine = await UserVaccine.findOne({
+      where: {
+        id: userVaccineId,
+        userId: userId
+      },
+      include: [{
+        model: Vaccine,
+        attributes: ['name', 'schedule', 'diseaseProtectedAgainst']
+      }]
+    });
+
+    if (!userVaccine) {
+      return res.status(404).json({
+        message: 'Vaccine record not found or unauthorized'
+      });
+    }
+
+    // ✅ FIXED: Only check if we're trying to mark as taken
+    if (hasTaken && userVaccine.status === 'completed') {
+      return res.status(400).json({
+        message: 'This vaccine dose is already marked as completed'
+      });
+    }
+
+    // Update the vaccination status
+    if (hasTaken) {
+      userVaccine.status = 'completed';
+      userVaccine.completedDoses = (userVaccine.completedDoses || 0) + 1;
+      userVaccine.lastDoseDate = new Date().toISOString().split('T')[0];
+      
+      // Handle multi-dose vaccines
+      const vaccine = userVaccine.Vaccine;
+      if (vaccine && vaccine.schedule && vaccine.schedule.doses) {
+        const totalDoses = vaccine.schedule.doses.length;
+        
+        if (userVaccine.completedDoses < totalDoses) {
+          // More doses needed - keep as pending and calculate next due date
+          userVaccine.status = 'pending';
+          const nextDose = vaccine.schedule.doses[userVaccine.completedDoses];
+          
+          if (nextDose && nextDose.ageInMonths) {
+            // Get user's date of birth to calculate next due date
+            const user = await User.findByPk(userId);
+            if (user) {
+              const dob = new Date(user.dateOfBirth);
+              userVaccine.nextDueDate = new Date(
+                dob.setMonth(dob.getMonth() + nextDose.ageInMonths)
+              );
+            }
+          }
+        } else {
+          // All doses completed - mark as completed
+          userVaccine.status = 'completed';
+          userVaccine.nextDueDate = null;
+        }
+      } else {
+        // Single dose vaccine - mark as completed
+        userVaccine.status = 'completed';
+        userVaccine.nextDueDate = null;
+      }
+      
+      console.log('Updated vaccine:', {
+        id: userVaccine.id,
+        status: userVaccine.status,
+        completedDoses: userVaccine.completedDoses,
+        totalDoses: vaccine?.schedule?.doses?.length
+      });
+    }
+
+    await userVaccine.save();
+
+    // ✅ FIXED: Return the updated record with Vaccine info
+    const updatedVaccine = await UserVaccine.findOne({
+      where: { id: userVaccineId },
+      include: [{
+        model: Vaccine,
+        attributes: ['name', 'schedule', 'diseaseProtectedAgainst']
+      }]
+    });
+
+    return res.status(200).json({
+      message: 'Vaccination status updated successfully',
+       updatedVaccine
+    });
+
+  } catch (error) {
+    console.error('Error updating vaccination status:', error);
+    return res.status(500).json({
+      message: 'Failed to update vaccination status',
+      error: error.message
+    });
+  }
+};
