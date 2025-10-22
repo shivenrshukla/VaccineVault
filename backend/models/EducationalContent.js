@@ -21,7 +21,7 @@ const EducationalContent = sequelize.define('EducationalContent', {
         allowNull: false
     },
     url: {
-        type: DataTypes.STRING,        // for video/pdf links
+        type: DataTypes.STRING,  
         allowNull: true,
         validate: { 
             isUrl: true

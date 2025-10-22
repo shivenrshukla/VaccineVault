@@ -71,11 +71,10 @@ const User = sequelize.define('User', {
         type: DataTypes.STRING,
         allowNull: true
     },
-    // --- New Field for Medical Conditions ---
     medicalConditions: {
         type: DataTypes.JSON,
-        allowNull: true, // Can be null if user has no conditions
-        defaultValue: [] // Default empty array
+        allowNull: true,
+        defaultValue: []
     }
 }, {
     timestamps: true

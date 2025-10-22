@@ -17,7 +17,6 @@ const Vaccine = sequelize.define('Vaccine', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    // --- THESE ARE THE NEW, REQUIRED FIELDS ---
     minAgeMonths: {
         type: DataTypes.INTEGER,
         allowNull: false
@@ -40,7 +39,7 @@ const Vaccine = sequelize.define('Vaccine', {
         defaultValue: false
     }
 }, {
-    timestamps: false // It's better to disable timestamps for a static data table
+    timestamps: false
 });
 
 export default Vaccine;
