@@ -5,7 +5,7 @@ import '../models/user.dart';
 
 class AuthService {
   // 👇 IMPORTANT: Replace with your actual local IP address
-  static const String _baseUrl = 'http://10.10.46.178:5050/api/auth';
+  static const String _baseUrl = 'http://localhost:5050/api/auth';
   static const String _tokenKey = 'jwt_token';
 
   /// --- Private Helper Methods ---
