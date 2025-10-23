@@ -26,8 +26,8 @@ if (GEMINI_API_KEY) {
   try {
     genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     // ✅ Use stable model instead of experimental one
-    geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    console.log('✅ Gemini AI SDK initialized with gemini-1.5-flash');
+    geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    console.log('✅ Gemini AI SDK initialized with gemini-2.5-flash');
   } catch (error) {
     console.error('❌ Failed to initialize Gemini AI SDK:', error.message);
   }

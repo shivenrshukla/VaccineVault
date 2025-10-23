@@ -17,22 +17,37 @@ const Vaccine = sequelize.define('Vaccine', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    minAgeMonths: {
+    
+    // --- FINALIZED SCHEMA ---
+    ageOfFirstDoseMonths: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: false,
+        comment: 'Recommended age in months for the very first dose (e.g., 6 for Flu).'
     },
-    maxAgeMonths: {
+    numberOfDoses: {
         type: DataTypes.INTEGER,
-        allowNull: true
+        allowNull: false,
+        defaultValue: 1,
+        comment: 'Total number of doses in the primary series (e.g., 3 for Hep B, 1 for Flu).'
     },
-    schedule: {
-        type: DataTypes.JSON,
-        allowNull: false
+    doseIntervalsDays: {
+        type: DataTypes.JSON, // Store as an array: [45, 135]
+        allowNull: true,
+        comment: 'Array of days *between* doses. [0] is gap b/w Dose 1 & 2.'
+    },
+    isRecurringBooster: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: 'True if this vaccine requires boosters forever (e.g., Flu).'
     },
     boosterIntervalYears: {
         type: DataTypes.INTEGER,
-        allowNull: true
+        allowNull: true,
+        comment: 'The number of years between boosters (e.g., 1 for Flu).'
     },
+    // --- END FINALIZED SCHEMA ---
+    
     isUIP: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
