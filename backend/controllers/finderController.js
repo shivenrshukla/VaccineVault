@@ -7,16 +7,17 @@ import { getMapMyIndiaToken } from './mapMyIndiaAuth.js';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MAPMYINDIA_BASE_URL = 'https://atlas.mapmyindia.com/api/places';
 const MAPMYINDIA_SEARCH_URL = `${MAPMYINDIA_BASE_URL}/search/json`;
+const MAPMYINDIA_GEOCODE_URL = `${MAPMYINDIA_BASE_URL}/geocode`; // Geocoding endpoint
 const httpsAgent = new https.Agent({ family: 4 });
 
 // Pin code coordinate cache for fallback
 const PINCODE_COORDINATES_CACHE = {
-  '401105': { lat: 19.2403, lng: 72.8517 }, // Mira Road, Mumbai
-  '400001': { lat: 18.9388, lng: 72.8354 }, // Mumbai Fort
-  '110001': { lat: 28.6139, lng: 77.2090 }, // New Delhi
-  '560001': { lat: 12.9716, lng: 77.5946 }, // Bangalore
-  '700001': { lat: 22.5726, lng: 88.3639 }, // Kolkata
-  '600001': { lat: 13.0827, lng: 80.2707 }, // Chennai
+  '401105': { lat: 19.2403, lng: 72.8517 },
+  '400001': { lat: 18.9388, lng: 72.8354 },
+  '110001': { lat: 28.6139, lng: 77.2090 },
+  '560001': { lat: 12.9716, lng: 77.5946 },
+  '700001': { lat: 22.5726, lng: 88.3639 },
+  '600001': { lat: 13.0827, lng: 80.2707 },
 };
 
 // Gemini Configuration
@@ -25,9 +26,8 @@ let geminiModel;
 if (GEMINI_API_KEY) {
   try {
     genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // ✅ Use stable model instead of experimental one
-    geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    console.log('✅ Gemini AI SDK initialized with gemini-1.5-flash');
+    geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    console.log('✅ Gemini AI SDK initialized with gemini-2.5-flash');
   } catch (error) {
     console.error('❌ Failed to initialize Gemini AI SDK:', error.message);
   }
@@ -36,10 +36,118 @@ if (GEMINI_API_KEY) {
 }
 
 /**
+ * Haversine formula to calculate distance between two coordinates
+ * @param {number} lat1 - Latitude of first point
+ * @param {number} lon1 - Longitude of first point
+ * @param {number} lat2 - Latitude of second point
+ * @param {number} lon2 - Longitude of second point
+ * @returns {number} Distance in kilometers
+ */
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+  const toRadians = (degree) => (degree * Math.PI) / 180;
+
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+
+  const lat1Rad = toRadians(lat1);
+  const lat2Rad = toRadians(lat2);
+
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  const earthRadiusKm = 6371;
+
+  return earthRadiusKm * c;
+}
+
+/**
+ * Geocode an address using MapMyIndia Geocoding API
+ * @param {string} address - Full address to geocode
+ * @param {string} token - MapMyIndia access token
+ * @returns {Object|null} { lat, lng } or null if failed
+ */
+async function geocodeAddressWithMapMyIndia(address, token) {
+  if (!token) {
+    console.error('[DEBUG] ❌ MapMyIndia token not provided for geocoding');
+    return null;
+  }
+
+  if (!address || address.trim() === '') {
+    console.error('[DEBUG] ❌ Invalid address provided for geocoding');
+    return null;
+  }
+
+  try {
+    console.log(`[DEBUG] 🗺️ Geocoding address with MapMyIndia: "${address}"`);
+
+    const response = await axios.get(MAPMYINDIA_GEOCODE_URL, {
+      params: {
+        address: address,
+        itemCount: 1, // We only need the best match
+      },
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      httpsAgent: httpsAgent,
+      timeout: 10000,
+    });
+
+    console.log('[DEBUG] MapMyIndia Geocode Response:', JSON.stringify(response.data, null, 2));
+
+    // MapMyIndia geocode response structure
+    if (response.data && response.data.copResults) {
+      const results = response.data.copResults;
+      
+      // Try different possible result structures
+      let lat = null;
+      let lng = null;
+
+      // Check if it's an array or object
+      if (Array.isArray(results) && results.length > 0) {
+        const firstResult = results[0];
+        lat = firstResult.latitude || firstResult.lat;
+        lng = firstResult.longitude || firstResult.lng || firstResult.lon;
+      } else if (typeof results === 'object') {
+        lat = results.latitude || results.lat;
+        lng = results.longitude || results.lng || results.lon;
+      }
+
+      if (lat && lng) {
+        const parsedLat = parseFloat(lat);
+        const parsedLng = parseFloat(lng);
+        
+        if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+          console.log(`[DEBUG] ✅ MapMyIndia geocoded address to: ${parsedLat}, ${parsedLng}`);
+          return { lat: parsedLat, lng: parsedLng };
+        }
+      }
+    }
+
+    console.warn('[DEBUG] ⚠️ No valid results from MapMyIndia geocoding');
+    return null;
+  } catch (error) {
+    if (error.response?.status === 401) {
+      console.error('[DEBUG] ❌ MapMyIndia 401 Unauthorized - Token may be expired');
+    } else if (error.response?.status === 403) {
+      console.error('[DEBUG] ❌ MapMyIndia 403 Forbidden - Check API permissions');
+    } else {
+      console.error('[DEBUG] ❌ MapMyIndia geocoding error:', error.message);
+      if (error.response) {
+        console.error('[DEBUG] Response data:', error.response.data);
+      }
+    }
+    return null;
+  }
+}
+
+/**
  * Get coordinates from Gemini with retry logic and fallback
  */
 async function getCoordinatesFromGemini(pinCode, retries = 2) {
-  // Check cache first
   if (PINCODE_COORDINATES_CACHE[pinCode]) {
     console.log(`[DEBUG] ✅ Using cached coordinates for pincode: ${pinCode}`);
     return PINCODE_COORDINATES_CACHE[pinCode];
@@ -69,10 +177,7 @@ async function getCoordinatesFromGemini(pinCode, retries = 2) {
         
         if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
           console.log(`[DEBUG] ✅ Gemini returned valid coordinates: ${lat}, ${lng}`);
-          
-          // Cache the result for future use
           PINCODE_COORDINATES_CACHE[pinCode] = { lat, lng };
-          
           return { lat, lng };
         } else {
           console.error(`[DEBUG] Coordinates out of range: ${text}`);
@@ -84,10 +189,9 @@ async function getCoordinatesFromGemini(pinCode, retries = 2) {
     } catch (error) {
       console.error(`[DEBUG] ❌ Gemini error (attempt ${attempt}/${retries}):`, error.message);
       
-      // Check for 503 (overloaded) error
       if (error.message.includes('503') || error.message.includes('overloaded')) {
         if (attempt < retries) {
-          const waitTime = 1000 * attempt; // 1s, 2s
+          const waitTime = 1000 * attempt;
           console.log(`[DEBUG] ⏳ Model overloaded, waiting ${waitTime}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
@@ -103,12 +207,14 @@ async function getCoordinatesFromGemini(pinCode, retries = 2) {
 }
 
 /**
- * @desc    Find healthcare facilities near a pincode
+ * @desc    Find healthcare facilities near a pincode with distance calculation
  * @route   GET /api/find/find-centers
  * @access  Public
+ * @query   {string} pinCode - Pincode to search near
+ * @query   {string} userAddress - (Optional) User's full address for accurate distance calculation
  */
 export const findCenters = async (req, res) => {
-  const { pinCode } = req.query;
+  const { pinCode, userAddress } = req.query;
 
   // Input Validation
   if (!pinCode) {
@@ -117,10 +223,22 @@ export const findCenters = async (req, res) => {
 
   console.log('=== [DEBUG] New Find Centers Request ===');
   console.log(`[DEBUG] Pin Code: ${pinCode}`);
+  console.log(`[DEBUG] User Address: ${userAddress || 'Not provided'}`);
 
   try {
     // ✅ Get fresh MapMyIndia token
     const MAPMYINDIA_TOKEN = await getMapMyIndiaToken();
+
+    // STEP 0: Geocode user's address if provided
+    let userCoordinates = null;
+    if (userAddress) {
+      userCoordinates = await geocodeAddressWithMapMyIndia(userAddress, MAPMYINDIA_TOKEN);
+      if (userCoordinates) {
+        console.log(`[DEBUG] ✅ User location: ${userCoordinates.lat}, ${userCoordinates.lng}`);
+      } else {
+        console.warn('[DEBUG] ⚠️ Failed to geocode user address');
+      }
+    }
 
     // STEP 1A: Get City/State from pincode
     console.log(`[DEBUG] Step 1A: Getting location details for pincode: ${pinCode}`);
@@ -200,6 +318,7 @@ export const findCenters = async (req, res) => {
     }
 
     console.log(`[DEBUG] Found ${allCentersRaw.length} facilities`);
+    console.log('[DEBUG] 📊 Sample center structure:', JSON.stringify(allCentersRaw[0], null, 2));
 
     // STEP 3: Filter by city/state if available
     let filteredCenters = allCentersRaw;
@@ -226,19 +345,171 @@ export const findCenters = async (req, res) => {
       }
     }
 
-    // STEP 4: Format results
-    const centers = filteredCenters.map(center => ({
-      name: center.placeName,
-      address: center.placeAddress,
-      contact: center.contactNumber || 'Not Available',
-      distance: center.distance ? `${Math.round(center.distance / 1000)} km` : 'Distance unknown'
-    }));
+    // STEP 4: Geocode center addresses and calculate distances
+    console.log('[DEBUG] Step 4: Processing centers and calculating distances...');
+    
+    const centersWithDistances = await Promise.all(
+      filteredCenters.map(async (center, index) => {
+        console.log(`[DEBUG] --- Processing Center ${index + 1}: ${center.placeName} ---`);
+        
+        let calculatedDistance = null;
+        let distanceSource = 'MapMyIndia API';
+        let centerLat = null;
+        let centerLng = null;
+        let coordinateSource = null;
 
-    console.log(`[DEBUG] ✅ Returning ${centers.length} centers`);
+        // Try to extract center coordinates from ALL possible MapMyIndia fields
+        const possibleLatFields = ['latitude', 'lat', 'eLat'];
+        const possibleLngFields = ['longitude', 'lng', 'lon', 'eLong'];
+
+        for (const field of possibleLatFields) {
+          if (center[field] && !isNaN(parseFloat(center[field]))) {
+            centerLat = parseFloat(center[field]);
+            break;
+          }
+        }
+
+        for (const field of possibleLngFields) {
+          if (center[field] && !isNaN(parseFloat(center[field]))) {
+            centerLng = parseFloat(center[field]);
+            break;
+          }
+        }
+
+        if (centerLat && centerLng) {
+          coordinateSource = 'MapMyIndia';
+          console.log(`[DEBUG] ✅ MapMyIndia coords: ${centerLat}, ${centerLng}`);
+        } else {
+          console.log(`[DEBUG] ❌ No coordinates in MapMyIndia response`);
+        }
+
+        // Try to extract MapMyIndia distance
+        let mapMyIndiaDistance = null;
+        if (center.distance && !isNaN(parseFloat(center.distance))) {
+          mapMyIndiaDistance = parseFloat(center.distance);
+          console.log(`[DEBUG] MapMyIndia distance field: ${mapMyIndiaDistance} (meters)`);
+        } else {
+          console.log(`[DEBUG] No distance field in MapMyIndia response`);
+        }
+
+        // If user address was provided and geocoded successfully
+        if (userCoordinates) {
+          console.log(`[DEBUG] User coordinates available: ${userCoordinates.lat}, ${userCoordinates.lng}`);
+          
+          // If MapMyIndia doesn't provide center coordinates, geocode the center address
+          if (!centerLat || !centerLng) {
+            console.log(`[DEBUG] 🔍 Geocoding center address: ${center.placeAddress}`);
+            
+            const centerCoords = await geocodeAddressWithMapMyIndia(center.placeAddress, MAPMYINDIA_TOKEN);
+            if (centerCoords) {
+              centerLat = centerCoords.lat;
+              centerLng = centerCoords.lng;
+              coordinateSource = 'MapMyIndia Geocode';
+              console.log(`[DEBUG] ✅ Center geocoded to: ${centerLat}, ${centerLng}`);
+            } else {
+              console.warn(`[DEBUG] ❌ Geocoding failed for center`);
+            }
+          }
+
+          // Calculate distance if we have both user and center coordinates
+          if (centerLat && centerLng && !isNaN(centerLat) && !isNaN(centerLng)) {
+            calculatedDistance = calculateHaversineDistance(
+              userCoordinates.lat,
+              userCoordinates.lng,
+              centerLat,
+              centerLng
+            );
+            
+            distanceSource = coordinateSource === 'MapMyIndia Geocode' 
+              ? 'MapMyIndia Geocode + Haversine'
+              : 'MapMyIndia Coords + Haversine';
+            
+            console.log(`[DEBUG] ✅ Calculated distance: ${calculatedDistance.toFixed(2)} km (via ${distanceSource})`);
+          } else {
+            console.warn(`[DEBUG] ⚠️ Cannot calculate Haversine distance - missing valid coordinates`);
+          }
+        } else {
+          console.log(`[DEBUG] ⚠️ No user coordinates available (geocoding failed or not provided)`);
+        }
+
+        // Determine final distance display and value
+        let displayDistance = 'Distance unknown';
+        let distanceValue = null;
+        let finalDistanceSource = 'Unknown';
+
+        if (calculatedDistance !== null) {
+          // Priority 1: Use our precise Haversine calculation
+          displayDistance = `${calculatedDistance.toFixed(2)} km`;
+          distanceValue = calculatedDistance;
+          finalDistanceSource = distanceSource;
+          console.log(`[DEBUG] 🎯 Using Haversine: ${displayDistance}`);
+        } else if (mapMyIndiaDistance !== null) {
+          // Priority 2: Use MapMyIndia distance (assumed to be in meters)
+          const distanceInKm = mapMyIndiaDistance / 1000;
+          displayDistance = `${distanceInKm.toFixed(2)} km`;
+          distanceValue = distanceInKm;
+          finalDistanceSource = 'MapMyIndia API';
+          console.log(`[DEBUG] 🎯 Using MapMyIndia distance: ${displayDistance}`);
+        } else if (centerLat && centerLng) {
+          // Priority 3: Calculate from pincode center if we have center coords but no user coords
+          const distanceFromPincode = calculateHaversineDistance(
+            lat, lng, // pincode coordinates
+            centerLat, centerLng
+          );
+          displayDistance = `~${distanceFromPincode.toFixed(2)} km`;
+          distanceValue = distanceFromPincode;
+          finalDistanceSource = 'Pincode Center Estimate';
+          console.log(`[DEBUG] 🎯 Using pincode-based estimate: ${displayDistance}`);
+        } else {
+          console.log(`[DEBUG] ❌ No distance available from any source`);
+        }
+
+        console.log(`[DEBUG] Final distance: ${displayDistance} (source: ${finalDistanceSource})`);
+
+        return {
+          name: center.placeName || 'Unknown Center',
+          address: center.placeAddress || 'Address not available',
+          contact: center.contactNumber || 'Not Available',
+          distance: displayDistance,
+          distanceValue: distanceValue,
+          distanceSource: finalDistanceSource,
+          coordinates: {
+            lat: centerLat,
+            lng: centerLng
+          }
+        };
+      })
+    );
+
+    // STEP 5: Sort by distance (centers with null distance go to end)
+    const sortedCenters = centersWithDistances.sort((a, b) => {
+      if (a.distanceValue === null && b.distanceValue === null) return 0;
+      if (a.distanceValue === null) return 1;
+      if (b.distanceValue === null) return -1;
+      return a.distanceValue - b.distanceValue;
+    });
+
+    console.log(`[DEBUG] ✅ Returning ${sortedCenters.length} centers sorted by distance`);
+    const sources = [...new Set(sortedCenters.map(c => c.distanceSource))];
+    console.log(`[DEBUG] Distance sources used: ${sources.join(', ')}`);
+    if (sortedCenters.length > 0 && sortedCenters[0].distanceValue !== null) {
+      console.log(`[DEBUG] Distance range: ${sortedCenters[0].distanceValue.toFixed(2)} km to ${sortedCenters[sortedCenters.length-1]?.distanceValue?.toFixed(2)} km`);
+    }
 
     res.json({
-      searchLocation: { lat, lng, pinCode, source: "Gemini Coordinates" },
-      foundCenters: centers,
+      searchLocation: { 
+        lat, 
+        lng, 
+        pinCode, 
+        source: "Gemini Coordinates" 
+      },
+      userLocation: userCoordinates ? {
+        lat: userCoordinates.lat,
+        lng: userCoordinates.lng,
+        address: userAddress,
+        source: "MapMyIndia Geocode"
+      } : null,
+      foundCenters: sortedCenters,
     });
 
   } catch (error) {
@@ -255,6 +526,12 @@ function handleApiError(error, res) {
     });
   }
 
+  if (error.message.includes('MapMyIndia')) {
+    return res.status(500).json({
+      error: 'Geocoding service temporarily unavailable. Please try again.'
+    });
+  }
+
   if (error.response) {
     console.error('[DEBUG] API Error Status:', error.response.status);
     console.error('[DEBUG] API Error Data:', JSON.stringify(error.response.data, null, 2));
@@ -267,7 +544,7 @@ function handleApiError(error, res) {
 
     if (statusCode === 401) {
       return res.status(401).json({
-        error: `Authentication failed with MapMyIndia API: ${errorMessage}`
+        error: `Authentication failed: ${errorMessage}`
       });
     }
 
