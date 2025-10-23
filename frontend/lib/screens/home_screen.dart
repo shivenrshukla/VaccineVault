@@ -1,6 +1,5 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-// REMOVE: AuthService import (it's in the wrapper)
 
 // ADD imports for your new screens
 import 'vaccine_schedule_screen.dart';
@@ -8,12 +7,10 @@ import 'vaccine_records_screen.dart';
 import 'knowledge_base_screen.dart';
 import 'chatbot_screen.dart';
 import 'vaccine_centres_screen.dart';
+import 'profile_page.dart'; // ADD THIS IMPORT
 
 class HomeScreen extends StatelessWidget {
-  // REMOVE: AuthService instance
-  // REMOVE: _logout method
-
-  const HomeScreen({super.key}); // UPDATED constructor
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -35,13 +32,16 @@ class HomeScreen extends StatelessWidget {
         child: SafeArea(
           child: Column(
             children: [
-              // Top Header Section (no change)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              // Top Header Section - UPDATED WITH CLICKABLE PROFILE
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 16.0,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    const Text(
                       '👋 Hi Rayyan!',
                       style: TextStyle(
                         fontSize: 24,
@@ -49,9 +49,21 @@ class HomeScreen extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
-                    CircleAvatar(
-                      backgroundColor: Color.fromARGB(77, 255, 255, 255),
-                      child: Icon(Icons.person, color: Colors.white),
+                    // UPDATED: Made CircleAvatar clickable
+                    GestureDetector(
+                      onTap: () {
+                        // Navigate to ProfilePage
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ProfilePage(),
+                          ),
+                        );
+                      },
+                      child: const CircleAvatar(
+                        backgroundColor: Color.fromARGB(77, 255, 255, 255),
+                        child: Icon(Icons.person, color: Colors.white),
+                      ),
                     ),
                   ],
                 ),
@@ -63,7 +75,6 @@ class HomeScreen extends StatelessWidget {
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
                     children: [
-                      // UPDATED: Added onTap handlers
                       _buildInfoCard(
                         context: context,
                         title: 'Vaccine Schedule',
@@ -145,7 +156,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
-      // REMOVE the entire bottomNavigationBar property
     );
   }
 
@@ -154,12 +164,11 @@ class HomeScreen extends StatelessWidget {
     required String title,
     required IconData icon,
     required Color color,
-    VoidCallback? onTap, // UPDATED: Add onTap callback
+    VoidCallback? onTap,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       child: InkWell(
-        // UPDATED: Wrap with InkWell for ripple effect
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(

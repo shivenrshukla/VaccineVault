@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'stats_screen.dart';
 import 'notifications_screen.dart';
+import 'settings_page.dart';
 
 class MainWrapperScreen extends StatefulWidget {
   const MainWrapperScreen({super.key});
@@ -24,11 +25,7 @@ class _MainWrapperScreenState extends State<MainWrapperScreen> {
 
   void _logout(BuildContext context) {
     _authService.logout();
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/getting-started',
-      (route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, '/settings', (route) => false);
   }
 
   void _onItemTapped(int index) {
