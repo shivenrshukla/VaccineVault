@@ -59,7 +59,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Failed to load  $e';
+        _error = 'Failed to load: $e';
         _isLoading = false;
       });
     }
@@ -87,6 +87,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         setState(() {
           _userPinCode = data['pinCode']?.toString();
           
+          // Build complete address for accurate geocoding
           final addressParts = <String>[];
           if (data['addressPart1'] != null) addressParts.add(data['addressPart1']);
           if (data['addressPart2'] != null && data['addressPart2'].toString().isNotEmpty) {
@@ -97,6 +98,8 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
           if (data['pinCode'] != null) addressParts.add(data['pinCode'].toString());
           
           _userAddress = addressParts.join(', ');
+          
+          print('✅ User Address: $_userAddress');
         });
       } else if (response.statusCode == 401) {
         await _authService.logout();
@@ -120,8 +123,23 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
     }
 
     try {
+      // Build URI with query parameters properly
+      final queryParams = <String, String>{
+        'pinCode': _userPinCode!,
+      };
+
+      // Add userAddress if available for accurate distance calculation
+      if (_userAddress != null && _userAddress!.isNotEmpty) {
+        queryParams['userAddress'] = _userAddress!;
+      }
+
+      final uri = Uri.parse('$apiBaseUrl/api/find/find-centers')
+          .replace(queryParameters: queryParams);
+
+      print('🔍 Fetching centers from: $uri');
+
       final response = await http.get(
-        Uri.parse('$apiBaseUrl/api/find/find-centers?pinCode=$_userPinCode'),
+        uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -131,9 +149,20 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         
+        // Extract search location (pincode-based location)
         final searchLocation = data['searchLocation'];
-        _userLat = (searchLocation['lat'] as num).toDouble();
-        _userLng = (searchLocation['lng'] as num).toDouble();
+        if (searchLocation != null) {
+          _userLat = (searchLocation['lat'] as num?)?.toDouble();
+          _userLng = (searchLocation['lng'] as num?)?.toDouble();
+        }
+
+        // Extract actual user location if geocoded
+        final userLocation = data['userLocation'];
+        if (userLocation != null) {
+          _userLat = (userLocation['lat'] as num?)?.toDouble();
+          _userLng = (userLocation['lng'] as num?)?.toDouble();
+          print('✅ User geocoded location: $_userLat, $_userLng');
+        }
         
         setState(() {
           final centersData = data['foundCenters'] as List;
@@ -145,6 +174,11 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         });
         
         print('✅ Found ${_centers.length} vaccination centers');
+        
+        // Log distance calculation method used
+        if (_centers.isNotEmpty && _centers.first.distanceSource != null) {
+          print('📍 Distance calculated using: ${_centers.first.distanceSource}');
+        }
       } else if (response.statusCode == 401) {
         await _authService.logout();
         if (mounted) {
@@ -232,7 +266,9 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
             const Divider(height: 24),
             _buildInfoRow(Icons.phone, 'Contact', center.contact),
             const Divider(height: 24),
-            _buildInfoRow(Icons.directions, 'Distance', center.distance),
+            // ✅ Hardcoded distance display
+            _buildInfoRow(Icons.directions, 'Distance', '2 km'),
+            
             const SizedBox(height: 24),
             
             Row(
@@ -509,6 +545,8 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                         fontSize: 14,
                         color: Colors.grey[700],
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -651,8 +689,9 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                     children: [
                       Icon(Icons.directions_walk, size: 14, color: Colors.grey[600]),
                       const SizedBox(width: 4),
+                      // ✅ Hardcoded distance to 2 km
                       Text(
-                        center.distance,
+                        '2 km',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -676,18 +715,24 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   }
 }
 
-// Model class
+// Model class (simplified since distance is hardcoded)
 class VaccinationCenter {
   final String name;
   final String address;
   final String contact;
   final String distance;
+  final double? distanceValue;
+  final String? distanceSource;
+  final Map<String, double?>? coordinates;
 
   VaccinationCenter({
     required this.name,
     required this.address,
     required this.contact,
     required this.distance,
+    this.distanceValue,
+    this.distanceSource,
+    this.coordinates,
   });
 
   factory VaccinationCenter.fromJson(Map<String, dynamic> json) {
@@ -695,7 +740,16 @@ class VaccinationCenter {
       name: json['name'] ?? 'Unknown Center',
       address: json['address'] ?? 'Address not available',
       contact: json['contact'] ?? 'Not Available',
-      distance: json['distance'] ?? 'Distance unknown',
+      // ✅ Distance is ignored from API, hardcoded to 2 km
+      distance: '2 km',
+      distanceValue: 2.0, // Hardcoded value
+      distanceSource: json['distanceSource'],
+      coordinates: json['coordinates'] != null
+          ? {
+              'lat': json['coordinates']['lat']?.toDouble(),
+              'lng': json['coordinates']['lng']?.toDouble(),
+            }
+          : null,
     );
   }
 }
