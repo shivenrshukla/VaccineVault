@@ -1,5 +1,4 @@
 // lib/models/vaccine_record.dart
-import 'package:flutter/material.dart';
 
 // Enum to help categorize vaccines
 enum VaccineCategory { completed, scheduled, pendingUnscheduled }

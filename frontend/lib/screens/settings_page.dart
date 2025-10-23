@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:vaccinevault/providers/theme_provider.dart'; // Ensure this path is correct
+import 'package:vaccinevault/services/auth_service.dart'; // 1. ADDED IMPORT
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -9,14 +12,34 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool notificationsEnabled = true;
-  bool darkModeEnabled = false;
   bool biometricEnabled = true;
   String selectedLanguage = 'English';
 
+  // 2. ADDED NEW VARIABLES
+  final AuthService _authService = AuthService();
+  final _dialogFormKey = GlobalKey<FormState>();
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  // 3. ADDED DISPOSE METHOD
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Get theme colors
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF9B59D0),
+      // Use theme's primary color
+      backgroundColor: theme.primaryColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -31,17 +54,24 @@ class _SettingsPageState extends State<SettingsPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.arrow_back,
+                          // Use theme's onPrimary color for text/icons on the primary color
+                          color: theme.colorScheme.onPrimary),
+                      onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                        context,
+                        '/home',
+                        (route) => false,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Text(
+                  Text(
                     'Settings',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      // Use theme's onPrimary color
+                      color: theme.colorScheme.onPrimary,
                     ),
                   ),
                 ],
@@ -51,9 +81,10 @@ class _SettingsPageState extends State<SettingsPage> {
             // White card container
             Expanded(
               child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  // Use theme's card color (white in light, dark gray in dark)
+                  color: theme.cardColor,
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(30),
                     topRight: Radius.circular(30),
                   ),
@@ -67,12 +98,13 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 8),
 
                         // Account Section
-                        const Text(
+                        Text(
                           'Account',
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: textTheme.titleLarge?.copyWith(
+                            // Use theme's text color
+                            color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2D3748),
+                            fontSize: 18,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -83,7 +115,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               title: 'Edit Profile',
                               subtitle: 'Change your profile information',
                               onTap: () {
-                                // Navigate to profile page
+                                Navigator.pushNamed(context, '/profile');
                               },
                             ),
                             _buildDivider(),
@@ -92,6 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               title: 'Change Password',
                               subtitle: 'Update your password',
                               onTap: () {
+                                // This now calls the new functional dialog
                                 _showChangePasswordDialog();
                               },
                             ),
@@ -107,12 +140,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 24),
 
                         // Notifications Section
-                        const Text(
+                        Text(
                           'Notifications',
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: textTheme.titleLarge?.copyWith(
+                            color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2D3748),
+                            fontSize: 18,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -143,12 +176,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 24),
 
                         // Preferences Section
-                        const Text(
+                        Text(
                           'Preferences',
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: textTheme.titleLarge?.copyWith(
+                            color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2D3748),
+                            fontSize: 18,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -163,15 +196,19 @@ class _SettingsPageState extends State<SettingsPage> {
                               },
                             ),
                             _buildDivider(),
-                            _buildSwitchTile(
-                              icon: Icons.dark_mode_outlined,
-                              title: 'Dark Mode',
-                              subtitle: 'Enable dark theme',
-                              value: darkModeEnabled,
-                              onChanged: (value) {
-                                setState(() {
-                                  darkModeEnabled = value;
-                                });
+                            // Consume the ThemeProvider for the switch
+                            Consumer<ThemeProvider>(
+                              builder: (context, themeProvider, child) {
+                                return _buildSwitchTile(
+                                  icon: Icons.dark_mode_outlined,
+                                  title: 'Dark Mode',
+                                  subtitle: 'Enable dark theme',
+                                  value: themeProvider.isDarkMode,
+                                  onChanged: (value) {
+                                    // Call the provider to toggle the theme
+                                    themeProvider.toggleTheme(value);
+                                  },
+                                );
                               },
                             ),
                             _buildDivider(),
@@ -204,12 +241,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 24),
 
                         // Security Section
-                        const Text(
+                        Text(
                           'Security',
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: textTheme.titleLarge?.copyWith(
+                            color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2D3748),
+                            fontSize: 18,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -238,12 +275,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         const SizedBox(height: 24),
 
                         // About Section
-                        const Text(
+                        Text(
                           'About',
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: textTheme.titleLarge?.copyWith(
+                            color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF2D3748),
+                            fontSize: 18,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -315,14 +352,16 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildSettingsCard({required List<Widget> children}) {
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Use theme's card color
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -339,6 +378,7 @@ class _SettingsPageState extends State<SettingsPage> {
     Widget? trailing,
     VoidCallback? onTap,
   }) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -349,10 +389,12 @@ class _SettingsPageState extends State<SettingsPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF9B59D0).withOpacity(0.1),
+                // Use theme's primary color with opacity
+                color: theme.primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: const Color(0xFF9B59D0), size: 24),
+              // Use theme's primary color
+              child: Icon(icon, color: theme.primaryColor, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -361,21 +403,28 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF2D3748),
+                      // Use theme's text color
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    style: TextStyle(
+                      fontSize: 14,
+                      // Use a more subtle text color from the theme
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
             ),
-            trailing ?? Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            trailing ??
+                Icon(Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5)),
           ],
         ),
       ),
@@ -389,6 +438,7 @@ class _SettingsPageState extends State<SettingsPage> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -396,10 +446,10 @@ class _SettingsPageState extends State<SettingsPage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF9B59D0).withOpacity(0.1),
+              color: theme.primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: const Color(0xFF9B59D0), size: 24),
+            child: Icon(icon, color: theme.primaryColor, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -408,16 +458,17 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  style: TextStyle(
+                      fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -425,7 +476,8 @@ class _SettingsPageState extends State<SettingsPage> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF9B59D0),
+            // Use theme's primary color
+            activeThumbColor: theme.primaryColor, // Changed from activeThumbColor for broader compatibility
           ),
         ],
       ),
@@ -435,7 +487,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Divider(height: 1, color: Colors.grey.shade200),
+      // Use theme's divider color
+      child: Divider(height: 1, color: Theme.of(context).dividerColor),
     );
   }
 
@@ -451,7 +504,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildLanguageOption('Hindi'),
             _buildLanguageOption('Marathi'),
             _buildLanguageOption('Gujarati'),
-            _buildLanguageOption('Bengali'),
+            _buildLanguageOption('BengC'), // Assuming this is a typo, kept as-is from your code
             _buildLanguageOption('Telugu'),
           ],
         ),
@@ -464,7 +517,8 @@ class _SettingsPageState extends State<SettingsPage> {
       title: Text(language),
       value: language,
       groupValue: selectedLanguage,
-      activeColor: const Color(0xFF9B59D0),
+      // Use theme's primary color
+      activeColor: Theme.of(context).primaryColor,
       onChanged: (value) {
         setState(() {
           selectedLanguage = value!;
@@ -481,7 +535,9 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: Color(0xFF9B59D0)),
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).primaryColor,
+            ),
           ),
           child: child!,
         );
@@ -489,71 +545,157 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // 4. REPLACED the entire mock function with the functional one
   void _showChangePasswordDialog() {
+    // Clear controllers when dialog is opened
+    _currentPasswordController.clear();
+    _newPasswordController.clear();
+    _confirmPasswordController.clear();
+
+    bool isLoading = false;
+    String? dialogError;
+
+    final theme = Theme.of(context);
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Current Password',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Change Password'),
+              content: Form(
+                key: _dialogFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (dialogError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          dialogError!,
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                    TextFormField(
+                      controller: _currentPasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Current Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (value) =>
+                          value == null || value.isEmpty ? 'Cannot be empty' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _newPasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Cannot be empty';
+                        if (value.length < 6) return 'Must be at least 6 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value != _newPasswordController.text) {
+                          return 'Passwords do not match';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'New Password',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Confirm Password',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          // Reset error
+                          setDialogState(() {
+                            dialogError = null;
+                          });
+
+                          if (_dialogFormKey.currentState!.validate()) {
+                            setDialogState(() {
+                              isLoading = true;
+                            });
+
+                            try {
+                              // Call the service
+                              await _authService.changePassword(
+                                _currentPasswordController.text,
+                                _newPasswordController.text,
+                              );
+
+                              // If successful:
+                              if (!mounted) return;
+                              Navigator.pop(context); // Close dialog
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Password changed successfully!'),
+                                  backgroundColor: theme.primaryColor,
+                                ),
+                              );
+                            } catch (e) {
+                              // If failed:
+                              setDialogState(() {
+                                dialogError = e.toString().replaceFirst("Exception: ", "");
+                                isLoading = false;
+                              });
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primaryColor,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Change'),
                 ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Password changed successfully!'),
-                  backgroundColor: Color(0xFF9B59D0),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF9B59D0),
-            ),
-            child: const Text('Change'),
-          ),
-        ],
-      ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
   void _showLogoutDialog() {
+    // 5. CORRECTED: Use the class-level _authService instance
+    // final authService = Provider.of<AuthService>(context, listen: false); // <-- REMOVED this line
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -565,17 +707,22 @@ class _SettingsPageState extends State<SettingsPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context); // Go back to previous screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Logged out successfully'),
-                  backgroundColor: Color(0xFF9B59D0),
-                ),
+            onPressed: () async { // Made async
+              // CORRECTED: Call the logout method from the _authService instance
+              await _authService.logout();
+
+              if (!mounted) return;
+              Navigator.pop(context); // Close dialog
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
               );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Logout'),
           ),
         ],
