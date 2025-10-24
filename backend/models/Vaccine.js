@@ -46,13 +46,33 @@ const Vaccine = sequelize.define('Vaccine', {
         allowNull: true,
         comment: 'The number of years between boosters (e.g., 1 for Flu).'
     },
-    // --- END FINALIZED SCHEMA ---
-    
     isUIP: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false
+    },
+    isTravelVaccine:{
+        type: DataTypes.BOOLEAN,
+        allowNull:false,
+        defaultValue:false,
+        comment: "True if this vaccine is recommended for travel (e.g., Yellow Fever, Typhoid)"
+    },
+    travelRegions: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    allowNull: true,
+    comment: "Regions or countries where this vaccine is recommended (e.g., ['Africa', 'South America'])"
+    },
+    mandatoryFor: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    allowNull: true,
+    comment: "Countries/events where this vaccine is mandatory (e.g., ['Hajj (Saudi Arabia)'])"
+    },
+    travelNotes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: "Additional information or certification requirements for travelers"
     }
+    
 }, {
     timestamps: false
 });

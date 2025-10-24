@@ -1,13 +1,12 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 
-// ADD imports for your new screens
 import 'vaccine_schedule_screen.dart';
 import 'vaccine_records_screen.dart';
 import 'knowledge_base_screen.dart';
-import 'chatbot_screen.dart';
 import 'vaccine_centres_screen.dart';
-import 'profile_page.dart'; // ADD THIS IMPORT
+import 'profile_page.dart';
+import 'travel_vaccines_screen.dart'; // NEW SCREEN
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -32,7 +31,7 @@ class HomeScreen extends StatelessWidget {
         child: SafeArea(
           child: Column(
             children: [
-              // Top Header Section - UPDATED WITH CLICKABLE PROFILE
+              // Top Header Section
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24.0,
@@ -49,10 +48,8 @@ class HomeScreen extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
-                    // UPDATED: Made CircleAvatar clickable
                     GestureDetector(
                       onTap: () {
-                        // Navigate to ProfilePage
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -68,6 +65,7 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
+
               // Main Content - List of Cards
               Expanded(
                 child: Padding(
@@ -121,14 +119,15 @@ class HomeScreen extends StatelessWidget {
                       ),
                       _buildInfoCard(
                         context: context,
-                        title: 'Chatbot',
-                        icon: Icons.chat,
+                        title: 'Travel Vaccines', // NEW CARD
+                        icon: Icons.flight_takeoff,
                         color: const Color(0xFFB794F6),
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const ChatbotScreen(),
+                              builder: (context) =>
+                                  const TravelVaccinesScreen(),
                             ),
                           );
                         },

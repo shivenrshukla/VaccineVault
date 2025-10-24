@@ -187,3 +187,26 @@ export const scheduleVaccine = async (req, res) => {
     });
   }
 };
+
+export const getTravelVaccines = async (req, res) => {
+  try {
+    const { destination } = req.query; // e.g., ?destination=Africa
+
+    const vaccines = await Vaccine.findAll({
+      where: { isTravelVaccine: true }
+    });
+
+    const filtered = destination
+      ? vaccines.filter(v =>
+          v.travelRegions?.some(region =>
+            region.toLowerCase().includes(destination.toLowerCase())
+          )
+        )
+      : vaccines;
+
+    res.status(200).json({ vaccines: filtered });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error fetching travel vaccines" });
+  }
+};
