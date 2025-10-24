@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import './auth_service.dart';
 
 class FamilyService {
@@ -155,10 +154,8 @@ class FamilyService {
   // --- NEW/UPDATED VACCINE METHODS (based on routes file) ---
   // Assumes routes are mounted at '/api/vaccines'
 
-  /**
-   * Gets recommended vaccines for the logged-in user.
-   * Based on: GET /recommendations
-   */
+  /// Gets recommended vaccines for the logged-in user.
+  /// Based on: GET /recommendations
   static Future<Map<String, dynamic>> getRecommendedVaccines() async {
     final token = await _authService.getToken();
     if (token == null) throw Exception('No authentication token found');
@@ -178,10 +175,8 @@ class FamilyService {
     }
   }
 
-  /**
-   * Marks a specific vaccine as completed.
-   * Based on: PUT /status/:userVaccineId
-   */
+  /// Marks a specific vaccine as completed.
+  /// Based on: PUT /status/:userVaccineId
   static Future<bool> markVaccineAsDone(int vaccineId, String administeredDate) async {
     final token = await _authService.getToken();
     if (token == null) throw Exception('No authentication token found');
@@ -206,10 +201,8 @@ class FamilyService {
     }
   }
 
-  /**
-   * Schedules a due date for a vaccine.
-   * Based on: PUT /schedule/:userVaccineId
-   */
+  /// Schedules a due date for a vaccine.
+  /// Based on: PUT /schedule/:userVaccineId
   static Future<bool> scheduleVaccine(int vaccineId, String scheduledDate) async {
     final token = await _authService.getToken();
     if (token == null) throw Exception('No authentication token found');

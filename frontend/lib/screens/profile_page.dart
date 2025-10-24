@@ -717,7 +717,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedGender,
+                  initialValue: selectedGender,
                   decoration: const InputDecoration(
                     labelText: 'Gender',
                     prefixIcon: Icon(Icons.wc),
@@ -735,7 +735,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedRelationship,
+                  initialValue: selectedRelationship,
                   decoration: const InputDecoration(
                     labelText: 'Relationship',
                     prefixIcon: Icon(Icons.family_restroom),
