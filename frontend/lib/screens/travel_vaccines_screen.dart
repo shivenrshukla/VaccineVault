@@ -423,7 +423,7 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
       statusIcon = Icons.event_available;
       statusColor = Colors.blue;
       statusText =
-          'Scheduled: ${DateFormat.yMMMd().format(DateTime.parse(userVaccine!.nextDueDate!))}';
+          'Scheduled: ${DateFormat.yMMMd().format(DateTime.parse(userVaccine.nextDueDate!))}';
       actionButton = TextButton.icon(
         onPressed: () {
           Navigator.pop(context);
@@ -444,7 +444,7 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
       actionButton = ElevatedButton.icon(
         onPressed: () {
           Navigator.pop(context);
-          _showScheduleDialog(userVaccine!);
+          _showScheduleDialog(userVaccine);
         },
         icon: const Icon(Icons.calendar_today, size: 18),
         label: const Text('Schedule'),

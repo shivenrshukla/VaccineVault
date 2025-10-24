@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vaccinevault/providers/theme_provider.dart'; // Ensure this path is correct
-import 'package:vaccinevault/services/auth_service.dart'; // 1. ADDED IMPORT
+import 'package:vaccinevault/services/auth_service.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb; // 1. ADDED PLATFORM CHECK IMPORT
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -12,17 +14,36 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool notificationsEnabled = true;
-  bool biometricEnabled = true;
+  bool biometricEnabled = false;
   String selectedLanguage = 'English';
 
-  // 2. ADDED NEW VARIABLES
   final AuthService _authService = AuthService();
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
   final _dialogFormKey = GlobalKey<FormState>();
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // 3. ADDED DISPOSE METHOD
+  @override
+  void initState() {
+    super.initState();
+    // 2. ADDED CHECK: Don't try to load biometrics on web
+    if (!kIsWeb) {
+      _loadBiometricPreference();
+    }
+  }
+
+  Future<void> _loadBiometricPreference() async {
+    // ADDED CHECK: Extra safety check for web
+    if (kIsWeb) return;
+
+    bool enabled = await _authService.isBiometricEnabled();
+    if (mounted) {
+      setState(() => biometricEnabled = enabled);
+    }
+  }
+
   @override
   void dispose() {
     _currentPasswordController.dispose();
@@ -38,7 +59,6 @@ class _SettingsPageState extends State<SettingsPage> {
     final textTheme = theme.textTheme;
 
     return Scaffold(
-      // Use theme's primary color
       backgroundColor: theme.primaryColor,
       body: SafeArea(
         child: Column(
@@ -55,7 +75,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     child: IconButton(
                       icon: Icon(Icons.arrow_back,
-                          // Use theme's onPrimary color for text/icons on the primary color
                           color: theme.colorScheme.onPrimary),
                       onPressed: () => Navigator.pushNamedAndRemoveUntil(
                         context,
@@ -70,7 +89,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      // Use theme's onPrimary color
                       color: theme.colorScheme.onPrimary,
                     ),
                   ),
@@ -82,7 +100,6 @@ class _SettingsPageState extends State<SettingsPage> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  // Use theme's card color (white in light, dark gray in dark)
                   color: theme.cardColor,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(30),
@@ -101,7 +118,6 @@ class _SettingsPageState extends State<SettingsPage> {
                         Text(
                           'Account',
                           style: textTheme.titleLarge?.copyWith(
-                            // Use theme's text color
                             color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
@@ -124,7 +140,6 @@ class _SettingsPageState extends State<SettingsPage> {
                               title: 'Change Password',
                               subtitle: 'Update your password',
                               onTap: () {
-                                // This now calls the new functional dialog
                                 _showChangePasswordDialog();
                               },
                             ),
@@ -196,7 +211,6 @@ class _SettingsPageState extends State<SettingsPage> {
                               },
                             ),
                             _buildDivider(),
-                            // Consume the ThemeProvider for the switch
                             Consumer<ThemeProvider>(
                               builder: (context, themeProvider, child) {
                                 return _buildSwitchTile(
@@ -205,7 +219,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                   subtitle: 'Enable dark theme',
                                   value: themeProvider.isDarkMode,
                                   onChanged: (value) {
-                                    // Call the provider to toggle the theme
                                     themeProvider.toggleTheme(value);
                                   },
                                 );
@@ -255,12 +268,72 @@ class _SettingsPageState extends State<SettingsPage> {
                             _buildSwitchTile(
                               icon: Icons.fingerprint,
                               title: 'Biometric Login',
-                              subtitle: 'Use fingerprint or face ID',
+                              subtitle:
+                                  'Use fingerprint or face ID for quick login',
                               value: biometricEnabled,
-                              onChanged: (value) {
-                                setState(() {
-                                  biometricEnabled = value;
-                                });
+                              onChanged: (value) async {
+                                // 3. ADDED PLATFORM CHECK BLOCK
+                                if (kIsWeb) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Biometrics are not supported on the web.'),
+                                      backgroundColor: Colors.amber,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                  return; // Stop execution
+                                }
+                                // END OF PLATFORM CHECK BLOCK
+
+                                if (value) {
+                                  // Trying to enable
+                                  try {
+                                    bool canCheck =
+                                        await _localAuth.canCheckBiometrics;
+                                    if (!canCheck) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text(
+                                                'Biometric authentication not available'),
+                                            backgroundColor: Colors.red,
+                                            behavior: SnackBarBehavior.floating),
+                                      );
+                                      return;
+                                    }
+
+                                    bool authenticated =
+                                        await _localAuth.authenticate(
+                                      localizedReason:
+                                          'Authenticate to enable biometrics',
+                                      options: const AuthenticationOptions(
+                                          stickyAuth: true,
+                                          biometricOnly: true),
+                                    );
+
+                                    if (authenticated) {
+                                      setState(() => biometricEnabled = true);
+                                      await _authService
+                                          .setBiometricEnabled(true);
+                                    }
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      SnackBar(
+                                          content: Text('Error: $e'),
+                                          backgroundColor: Colors.red,
+                                          behavior: SnackBarBehavior.floating),
+                                    );
+                                  }
+                                } else {
+                                  // Disabling
+                                  setState(() => biometricEnabled = false);
+                                  await _authService
+                                      .setBiometricEnabled(false);
+                                }
                               },
                             ),
                             _buildDivider(),
@@ -327,7 +400,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
                               side: const BorderSide(
                                 color: Colors.red,
                                 width: 1.5,
@@ -351,11 +425,12 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // --- All helper widgets from V1 are kept as-is ---
+
   Widget _buildSettingsCard({required List<Widget> children}) {
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        // Use theme's card color
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
@@ -389,11 +464,9 @@ class _SettingsPageState extends State<SettingsPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                // Use theme's primary color with opacity
                 color: theme.primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              // Use theme's primary color
               child: Icon(icon, color: theme.primaryColor, size: 24),
             ),
             const SizedBox(width: 16),
@@ -406,7 +479,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      // Use theme's text color
                       color: theme.colorScheme.onSurface,
                     ),
                   ),
@@ -415,7 +487,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 14,
-                      // Use a more subtle text color from the theme
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -476,8 +547,7 @@ class _SettingsPageState extends State<SettingsPage> {
           Switch(
             value: value,
             onChanged: onChanged,
-            // Use theme's primary color
-            activeThumbColor: theme.primaryColor, // Changed from activeThumbColor for broader compatibility
+            activeThumbColor: theme.primaryColor,
           ),
         ],
       ),
@@ -487,7 +557,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      // Use theme's divider color
       child: Divider(height: 1, color: Theme.of(context).dividerColor),
     );
   }
@@ -504,7 +573,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildLanguageOption('Hindi'),
             _buildLanguageOption('Marathi'),
             _buildLanguageOption('Gujarati'),
-            _buildLanguageOption('BengC'), // Assuming this is a typo, kept as-is from your code
+            _buildLanguageOption('Bengali'), // Corrected typo
             _buildLanguageOption('Telugu'),
           ],
         ),
@@ -517,7 +586,6 @@ class _SettingsPageState extends State<SettingsPage> {
       title: Text(language),
       value: language,
       groupValue: selectedLanguage,
-      // Use theme's primary color
       activeColor: Theme.of(context).primaryColor,
       onChanged: (value) {
         setState(() {
@@ -545,9 +613,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 4. REPLACED the entire mock function with the functional one
+  // Functional Change Password Dialog
   void _showChangePasswordDialog() {
-    // Clear controllers when dialog is opened
     _currentPasswordController.clear();
     _newPasswordController.clear();
     _confirmPasswordController.clear();
@@ -574,7 +641,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Text(
                           dialogError!,
-                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                          style:
+                              const TextStyle(color: Colors.red, fontSize: 12),
                         ),
                       ),
                     TextFormField(
@@ -600,8 +668,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Cannot be empty';
-                        if (value.length < 6) return 'Must be at least 6 characters';
+                        if (value == null || value.isEmpty)
+                          return 'Cannot be empty';
+                        if (value.length < 6)
+                          return 'Must be at least 6 characters';
                         return null;
                       },
                     ),
@@ -634,7 +704,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   onPressed: isLoading
                       ? null
                       : () async {
-                          // Reset error
                           setDialogState(() {
                             dialogError = null;
                           });
@@ -645,25 +714,25 @@ class _SettingsPageState extends State<SettingsPage> {
                             });
 
                             try {
-                              // Call the service
                               await _authService.changePassword(
                                 _currentPasswordController.text,
                                 _newPasswordController.text,
                               );
 
-                              // If successful:
                               if (!mounted) return;
                               Navigator.pop(context); // Close dialog
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: const Text('Password changed successfully!'),
+                                  content: const Text(
+                                      'Password changed successfully!'),
                                   backgroundColor: theme.primaryColor,
                                 ),
                               );
                             } catch (e) {
-                              // If failed:
                               setDialogState(() {
-                                dialogError = e.toString().replaceFirst("Exception: ", "");
+                                dialogError = e
+                                    .toString()
+                                    .replaceFirst("Exception: ", "");
                                 isLoading = false;
                               });
                             }
@@ -692,10 +761,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // Functional Logout Dialog
   void _showLogoutDialog() {
-    // 5. CORRECTED: Use the class-level _authService instance
-    // final authService = Provider.of<AuthService>(context, listen: false); // <-- REMOVED this line
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -707,8 +774,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () async { // Made async
-              // CORRECTED: Call the logout method from the _authService instance
+            onPressed: () async {
               await _authService.logout();
 
               if (!mounted) return;

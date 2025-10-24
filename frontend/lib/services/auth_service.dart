@@ -9,6 +9,15 @@ class AuthService {
   static const storage = FlutterSecureStorage();
   static const String _tokenKey = 'jwt_token';
 
+  Future<void> setBiometricEnabled(bool enabled) async {
+    await storage.write(key: 'biometric_enabled', value: enabled ? 'true' : 'false');
+  }
+
+  Future<bool> isBiometricEnabled() async {
+    String? value = await storage.read(key: 'biometric_enabled');
+    return value == 'true';
+  }
+
   // --- UPDATED ---
   // Changed return type from Future<bool> to Future<void>.
   // It will now throw an exception on failure instead of returning false.

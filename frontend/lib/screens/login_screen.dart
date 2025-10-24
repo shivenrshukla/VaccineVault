@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 import '../services/auth_service.dart';
 import '../utils/validators.dart';
 
@@ -11,13 +12,34 @@ class LoginScreen extends StatefulWidget {
 
 class LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  // UPDATED: Controller renamed for clarity
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String _biometricMessage = '';
+  
+  // 1. ADDED: State variable to hold the user's preference
+  bool _isBiometricEnabled = false;
+
+  // 2. ADDED: initState to load the preference on screen load
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricPreference();
+  }
+  
+  // 3. ADDED: Function to check the preference from AuthService
+  Future<void> _checkBiometricPreference() async {
+    final bool enabled = await _authService.isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _isBiometricEnabled = enabled;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -26,7 +48,6 @@ class LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // --- UPDATED LOGIN LOGIC ---
   void _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -34,36 +55,62 @@ class LoginScreenState extends State<LoginScreen> {
       });
 
       try {
-        // Call the correct 'login' method from AuthService
-        // The token is returned on success, but we don't need the variable here.
         await _authService.login(
           _emailController.text,
           _passwordController.text,
         );
 
-        // On success, the token is returned (though we don't use it yet)
         if (!mounted) return;
-        // Navigate to the home screen after a successful login
         Navigator.pushReplacementNamed(context, '/home');
-
       } catch (e) {
-        // If login fails, the service throws an exception. We catch it here.
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString().replaceFirst("Exception: ", "")}'), // Show server error
+            content: Text('Error: ${e.toString().replaceFirst("Exception: ", "")}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
         );
       } finally {
-        // This will run whether the login succeeds or fails
         if (mounted) {
           setState(() {
             _isLoading = false;
           });
         }
       }
+    }
+  }
+
+  Future<void> _loginWithBiometrics() async {
+    // The preference check is already done by hiding/showing the button.
+    // This function now just checks hardware and authenticates.
+    try {
+      bool canCheck = await _localAuth.canCheckBiometrics;
+      if (!canCheck) {
+        setState(() => _biometricMessage = "Biometric authentication not available on this device");
+        return;
+      }
+
+      bool authenticated = await _localAuth.authenticate(
+        localizedReason: 'Scan your fingerprint or face to login',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+
+      if (authenticated) {
+        if (!mounted) return;
+        // IMPORTANT: You'll need to fetch the user's credentials
+        // from secure storage here and log them in,
+        // then navigate.
+        // For now, just navigating to home.
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        setState(() => _biometricMessage = "Failed to authenticate");
+      }
+    } catch (e) {
+      setState(() => _biometricMessage = "Error: $e");
     }
   }
 
@@ -81,7 +128,7 @@ class LoginScreenState extends State<LoginScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // 🔙 Top section with back arrow + logo
+              // Top section (logo + back arrow)
               Expanded(
                 flex: 2,
                 child: Padding(
@@ -111,7 +158,7 @@ class LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 🔽 Bottom section with login form
+              // Bottom section (login form)
               Expanded(
                 flex: 3,
                 child: Container(
@@ -164,7 +211,7 @@ class LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 30),
 
-                          // --- UPDATED: Username field instead of Email ---
+                          // Email field
                           Container(
                             decoration: BoxDecoration(
                               color: const Color(0xFFF7FAFC),
@@ -172,23 +219,18 @@ class LoginScreenState extends State<LoginScreen> {
                             ),
                             child: TextFormField(
                               controller: _emailController,
-                              validator: Validators.validateName, // Use appropriate validator
+                              validator: Validators.validateEmail, // Using validateEmail
                               decoration: const InputDecoration(
-                                prefixIcon: Icon(
-                                  Icons.person_outline, // Changed icon
-                                  color: Color(0xFF8B5FBF),
-                                ),
-                                hintText: 'email', // Changed hint
+                                prefixIcon: Icon(Icons.person_outline, color: Color(0xFF8B5FBF)),
+                                hintText: 'Email', // Changed hint
                                 hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
                                 border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                               ),
                             ),
                           ),
                           const SizedBox(height: 16),
+
                           // Password field
                           Container(
                             decoration: BoxDecoration(
@@ -200,20 +242,12 @@ class LoginScreenState extends State<LoginScreen> {
                               validator: Validators.validatePassword,
                               obscureText: _obscurePassword,
                               decoration: InputDecoration(
-                                prefixIcon: const Icon(
-                                  Icons.lock_outlined,
-                                  color: Color(0xFF8B5FBF),
-                                ),
+                                prefixIcon: const Icon(Icons.lock_outlined, color: Color(0xFF8B5FBF)),
                                 hintText: '••••••',
-                                hintStyle: const TextStyle(
-                                  color: Color(0xFF9CA3AF),
-                                  fontSize: 20,
-                                ),
+                                hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 20),
                                 suffixIcon: IconButton(
                                   icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
+                                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
                                     color: const Color(0xFF9CA3AF),
                                   ),
                                   onPressed: () {
@@ -223,45 +257,33 @@ class LoginScreenState extends State<LoginScreen> {
                                   },
                                 ),
                                 border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                               ),
                             ),
                           ),
                           const SizedBox(height: 16),
-                          // "Don't have an account?" link
+
+                          // Signup link
                           Center(
                             child: TextButton(
-                              onPressed: () {
-                                Navigator.pushNamed(context, '/signup');
-                              },
+                              onPressed: () => Navigator.pushNamed(context, '/signup'),
                               child: const Text(
                                 'Don\'t have an account?',
-                                style: TextStyle(
-                                  color: Color(0xFF8B5FBF),
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: TextStyle(color: Color(0xFF8B5FBF), fontWeight: FontWeight.w600),
                               ),
                             ),
                           ),
                           const SizedBox(height: 20),
+
                           // Login button
                           Container(
                             width: double.infinity,
                             height: 56,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF8B5FBF), Color(0xFF6B46C1)],
-                              ),
+                              gradient: const LinearGradient(colors: [Color(0xFF8B5FBF), Color(0xFF6B46C1)]),
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
-                                BoxShadow(
-                                  color: const Color.fromARGB(77, 139, 95, 191),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
+                                BoxShadow(color: const Color.fromARGB(77, 139, 95, 191), blurRadius: 20, offset: const Offset(0, 10)),
                               ],
                             ),
                             child: ElevatedButton(
@@ -269,44 +291,25 @@ class LoginScreenState extends State<LoginScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
                               child: _isLoading
-                                  ? const CircularProgressIndicator(
-                                      color: Colors.white,
-                                    )
-                                  : const Text(
-                                      'Login',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                                  ? const CircularProgressIndicator(color: Colors.white)
+                                  : const Text('Login', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                             ),
                           ),
                           const SizedBox(height: 20),
+
                           // OR divider
                           const Row(
                             children: [
-                              Expanded(
-                                child: Divider(color: Color(0xFFE2E8F0)),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  'Or',
-                                  style: TextStyle(color: Color(0xFF9CA3AF)),
-                                ),
-                              ),
-                              Expanded(
-                                child: Divider(color: Color(0xFFE2E8F0)),
-                              ),
+                              Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                              Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Or', style: TextStyle(color: Color(0xFF9CA3AF)))),
+                              Expanded(child: Divider(color: Color(0xFFE2E8F0))),
                             ],
                           ),
                           const SizedBox(height: 20),
+
                           // Google button
                           Container(
                             width: double.infinity,
@@ -319,38 +322,47 @@ class LoginScreenState extends State<LoginScreen> {
                             child: ElevatedButton.icon(
                               onPressed: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Google Sign In - Coming Soon!',
-                                    ),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
+                                  const SnackBar(content: Text('Google Sign In - Coming Soon!'), behavior: SnackBarBehavior.floating),
                                 );
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: const Color(0xFF2D3748),
                                 shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
-                              icon: const Text(
-                                'G',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red,
-                                ),
-                              ),
-                              label: const Text(
-                                'Google',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              icon: const Text('G', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)), // Simple 'G'
+                              label: const Text('Continue with Google', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)), // Updated text
                             ),
                           ),
+                          const SizedBox(height: 16),
+
+                          // 4. UPDATED: Conditional biometric button
+                          if (_isBiometricEnabled) ...[
+                            Container(
+                              width: double.infinity,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF7FAFC), // Lighter color
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFFE2E8F0)), // Border
+                              ),
+                              child: ElevatedButton.icon(
+                                onPressed: _loginWithBiometrics,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent, // Transparent bg
+                                  foregroundColor: const Color(0xFF2D3748), // Dark text
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                icon: const Icon(Icons.fingerprint, size: 24, color: Color(0xFF6B46C1)), // Themed icon
+                                label: const Text('Login with Biometrics', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            if (_biometricMessage.isNotEmpty)
+                              Center(child: Text(_biometricMessage, style: const TextStyle(color: Colors.red))),
+                          ],
                         ],
                       ),
                     ),
