@@ -13,9 +13,27 @@ export const generateToken = (user) => {
 // Register a new user
 export const register = async (req, res) => {
     try {
-        const { username, password, email, gender, dateOfBirth, addressPart1, addressPart2, city, state, pinCode, phoneNumber } = req.body;
-        console.log(username, password, email, gender, dateOfBirth, addressPart1, addressPart2, city, state, pinCode, phoneNumber)
-        
+        const {
+            username,
+            password,
+            email,
+            gender,
+            dateOfBirth,
+            addressPart1,
+            addressPart2,
+            city,
+            state,
+            pinCode,
+            phoneNumber,
+            role,
+            pushNotificationToken,
+            familyAdminId,
+            relationshipToAdmin, 
+            medicalConditions
+        } = req.body;
+
+        console.log(username, email, familyAdminId, relationshipToAdmin);
+
         // Basic validation
         if (!username || !password || !email || !gender || !dateOfBirth || !addressPart1 || !city || !state || !pinCode || !phoneNumber) {
             return res.status(400).json({ message: "All required fields must be filled" });
@@ -33,7 +51,7 @@ export const register = async (req, res) => {
             return res.status(400).json({ message: "Username is already taken" });
         }
 
-        // Create new user
+        // ✅ Create new user (now includes family fields)
         const newUser = await User.create({
             username,
             password,
@@ -46,14 +64,23 @@ export const register = async (req, res) => {
             state,
             pinCode,
             phoneNumber,
-            role: 'user'
+            role: role || 'user',
+            pushNotificationToken,
+            familyAdminId,
+            relationshipToAdmin,
+            medicalConditions: medicalConditions || null
         });
 
         const token = generateToken(newUser);
-        res.status(201).json({ token });
+        res.status(201).json({
+            message: "User registered successfully",
+            token,
+            userId: newUser.id,
+            familyAdminId: newUser.familyAdminId
+        });
     } catch (error) {
         console.error("Error during registration:", error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
 
@@ -74,7 +101,10 @@ export const login = async (req, res) => {
         }
 
         const token = generateToken(user);
-        res.status(200).json({ token });
+        res.status(200).json({ 
+            token,
+            userId: user.id,
+        });
     } catch (error) {
         console.error("Error during login:", error);
         res.status(500).json({ message: "Internal server error" });

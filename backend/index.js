@@ -8,6 +8,7 @@ import vaccineRoutes from './routes/vaccine.js';
 import findRoutes from './routes/findRoutes.js';
 import sequelize from './config/db.js'; // Import sequelize instance
 import testRoutes from './routes/testRoutes.js';
+import familyRoutes from './routes/familyRoutes.js';
 
 import {startReminderService} from './services/reminderService.js'
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/educational-content', educationContentRoutes);
 app.use('/api/vaccines', vaccineRoutes);
 app.use('/api/test',testRoutes);
 app.use('/api/find', findRoutes);
+app.use('/api/family', familyRoutes);
 
 const PORT = process.env.PORT || 5000;
 startReminderService();
@@ -43,4 +45,3 @@ app.listen(PORT, () => {
 });
 
 // how to start db : psql -d vaccinevault
-

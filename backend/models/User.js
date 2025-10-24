@@ -75,9 +75,29 @@ const User = sequelize.define('User', {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: []
+    },
+    // NEW FIELD FOR FAMILY SUPPORT
+    familyAdminId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'Users',
+            key: 'id'
+        },
+        comment: 'If set, this user is a family member managed by the admin with this ID'
+    },
+    // Optional: Track relationship to admin
+    relationshipToAdmin: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'e.g., "spouse", "child", "parent", "sibling"'
     }
 }, {
     timestamps: true
 });
+
+// Self-referencing association
+User.hasMany(User, { as: 'FamilyMembers', foreignKey: 'familyAdminId' });
+User.belongsTo(User, { as: 'FamilyAdmin', foreignKey: 'familyAdminId' });
 
 export default User;
