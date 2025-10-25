@@ -668,10 +668,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty)
+                        if (value == null || value.isEmpty) {
                           return 'Cannot be empty';
-                        if (value.length < 6)
+                        }
+                        if (value.length < 6) {
                           return 'Must be at least 6 characters';
+                        }
                         return null;
                       },
                     ),

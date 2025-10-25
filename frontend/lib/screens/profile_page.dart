@@ -144,7 +144,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Check if family features should be shown
   bool get _shouldShowFamilyFeatures {
-    return _isFamilyAdmin && _totalFamilyMembers >= 2;
+    return _isFamilyAdmin;
   }
 
   @override
