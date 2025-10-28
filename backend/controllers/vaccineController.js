@@ -154,6 +154,84 @@ export const updateVaccinationStatus = async (req, res) => {
   }
 };
 
+export const markVaccineAsTaken = async (req, res) => {
+  try {
+    const { userVaccineId } = req.params;
+    const { dosesCompleted, dateTaken } = req.body;
+    const userId = req.user.id;
+
+    // Validation
+    if (!dosesCompleted || !dateTaken) {
+      return res.status(400).json({ message: 'dosesCompleted and dateTaken are required' });
+    }
+
+    const userVaccine = await UserVaccine.findOne({
+      where: { id: userVaccineId, userId: userId },
+      include: [{ model: Vaccine }]
+    });
+
+    if (!userVaccine) {
+      return res.status(404).json({ message: 'Vaccine record not found' });
+    }
+
+    const vaccine = userVaccine.Vaccine;
+    const totalDoses = vaccine.numberOfDoses || 1;
+
+    // Validate doses completed
+    if (dosesCompleted > totalDoses) {
+      return res.status(400).json({ 
+        message: `Cannot mark ${dosesCompleted} doses as completed. This vaccine only has ${totalDoses} doses.` 
+      });
+    }
+
+    // Update the record
+    userVaccine.completedDoses = dosesCompleted;
+    userVaccine.lastDoseDate = dateTaken;
+
+    // Determine next status
+    if (dosesCompleted < totalDoses) {
+      // More primary doses needed
+      userVaccine.status = 'pending';
+      
+      // Calculate next due date based on the last completed dose
+      const intervalDays = vaccine.doseIntervalsDays[dosesCompleted - 1];
+      const nextDueDate = addDaysToDateOnly(dateTaken, intervalDays);
+      userVaccine.nextDueDate = nextDueDate;
+      
+    } else if (vaccine.isRecurringBooster && vaccine.boosterIntervalYears > 0) {
+      // All primary doses done, but booster needed
+      userVaccine.status = 'pending';
+      const [year, month, day] = dateTaken.split('-').map(Number);
+      const nextYear = year + vaccine.boosterIntervalYears;
+      userVaccine.nextDueDate = `${nextYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      
+    } else {
+      // Fully complete
+      userVaccine.status = 'completed';
+      userVaccine.nextDueDate = null;
+    }
+
+    await userVaccine.save();
+
+    const updatedVaccine = await UserVaccine.findOne({
+      where: { id: userVaccineId },
+      include: [{ model: Vaccine }]
+    });
+
+    return res.status(200).json({
+      message: 'Vaccine marked as taken successfully',
+      updatedVaccine
+    });
+
+  } catch (error) {
+    console.error('Error marking vaccine as taken:', error);
+    return res.status(500).json({
+      message: 'Failed to mark vaccine as taken',
+      error: error.message
+    });
+  }
+};
+
 export const scheduleVaccine = async (req, res) => {
   try {
     const { userVaccineId } = req.params;

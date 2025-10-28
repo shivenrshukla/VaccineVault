@@ -3,7 +3,8 @@ import {
     getRecommendedVaccines,
     updateVaccinationStatus,
     scheduleVaccine,
-    getTravelVaccines
+    getTravelVaccines,
+    markVaccineAsTaken
 } from "../controllers/vaccineController.js";
 import { authenticate } from "../middleware/authMiddleware.js";
 
@@ -16,6 +17,8 @@ router.get("/recommendations", authenticate, getRecommendedVaccines);
 router.put("/status/:userVaccineId", authenticate, updateVaccinationStatus);
 
 router.put('/schedule/:userVaccineId', authenticate, scheduleVaccine);
+
+router.put('/mark-taken/:userVaccineId', authenticate, markVaccineAsTaken);
 
 router.get("/travel",getTravelVaccines);
 export default router;

@@ -17,10 +17,8 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   List<VaccineRecord> _allVaccines = [];
   bool _isLoading = true;
   String? _error;
-  bool _showPending = true; // Toggle state: true = pending, false = completed
+  bool _showPending = true;
 
-  // Use http://10.0.2.2:5000 for Android Emulator
-  // Use http://localhost:5000 for iOS Simulator or Web
   static const String apiBaseUrl = 'http://localhost:5000';
   final AuthService _authService = AuthService();
   String? _authToken;
@@ -105,13 +103,12 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           'Authorization': 'Bearer $_authToken',
         },
         body: json.encode({
-          // Format as YYYY-MM-DD
           'nextDueDate': selectedDate.toIso8601String().split('T')[0],
         }),
       );
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
       if (response.statusCode == 200) {
-        await _fetchVaccines(); // Refresh the list
+        await _fetchVaccines();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -146,12 +143,374 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     }
   }
 
+  // ✅ NEW METHOD: Mark vaccine as already taken
+  Future<void> _markVaccineAsTaken(
+    VaccineRecord vaccine,
+    int dosesCompleted,
+    DateTime dateTaken,
+  ) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF8B5FBF)),
+      ),
+    );
+    try {
+      final response = await http.put(
+        Uri.parse('$apiBaseUrl/api/vaccines/mark-taken/${vaccine.id}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_authToken',
+        },
+        body: json.encode({
+          'dosesCompleted': dosesCompleted,
+          'dateTaken': dateTaken.toIso8601String().split('T')[0],
+        }),
+      );
+      Navigator.pop(context);
+      if (response.statusCode == 200) {
+        await _fetchVaccines();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✓ ${vaccine.name} marked as taken!'),
+              backgroundColor: const Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to mark as taken: ${response.body}'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ NEW METHOD: Show dialog to mark as taken
+  void _showMarkAsTakenDialog(VaccineRecord vaccine) {
+    int selectedDoses = 1;
+    String selectedDateOption = 'specific';
+    DateTime selectedSpecificDate = DateTime.now().subtract(const Duration(days: 7));
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Calculate date based on range selection
+          DateTime getDateFromRange(String range) {
+            final now = DateTime.now();
+            switch (range) {
+              case '0-1':
+                return now.subtract(Duration(days: 15));
+              case '2-4':
+                return now.subtract(Duration(days: 90));
+              case '4-6':
+                return now.subtract(Duration(days: 150));
+              case '6-12':
+                return now.subtract(Duration(days: 270));
+              case '1-2y':
+                return now.subtract(Duration(days: 540));
+              case '2+y':
+                return now.subtract(Duration(days: 900));
+              default:
+                return selectedSpecificDate;
+            }
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.history, color: Color(0xFF8B5FBF)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Mark as Already Taken',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    vaccine.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2D3748),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+
+                  // Dose Selection
+                  Text(
+                    'How many doses have you completed?',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Color(0xFF8B5FBF)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButton<int>(
+                      value: selectedDoses,
+                      isExpanded: true,
+                      underline: SizedBox(),
+                      items: List.generate(
+                        vaccine.totalDoses ?? 1,
+                        (index) => DropdownMenuItem(
+                          value: index + 1,
+                          child: Text(
+                            vaccine.totalDoses != null
+                                ? 'Dose ${index + 1} of ${vaccine.totalDoses}'
+                                : 'Dose ${index + 1}',
+                          ),
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedDoses = value!;
+                        });
+                      },
+                    ),
+                  ),
+                  SizedBox(height: 20),
+
+                  // Date Selection
+                  Text(
+                    'When did you take it?',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  SizedBox(height: 8),
+
+                  // Date Option Toggle
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setDialogState(() {
+                              selectedDateOption = 'specific';
+                            }),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: selectedDateOption == 'specific'
+                                    ? Color(0xFF8B5FBF)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Specific Date',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: selectedDateOption == 'specific'
+                                      ? Colors.white
+                                      : Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setDialogState(() {
+                              selectedDateOption = 'range';
+                            }),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: selectedDateOption == 'range'
+                                    ? Color(0xFF8B5FBF)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Time Range',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: selectedDateOption == 'range'
+                                      ? Colors.white
+                                      : Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 12),
+
+                  // Specific Date Picker
+                  if (selectedDateOption == 'specific')
+                    GestureDetector(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedSpecificDate,
+                          firstDate: DateTime.now().subtract(
+                            Duration(days: 365 * 10),
+                          ),
+                          lastDate: DateTime.now(),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: ColorScheme.light(
+                                  primary: Color(0xFF6B46C1),
+                                  onPrimary: Colors.white,
+                                  onSurface: Colors.black,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedSpecificDate = picked;
+                          });
+                        }
+                      },
+                      child: Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Color(0xFF8B5FBF)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today,
+                                color: Color(0xFF8B5FBF), size: 20),
+                            SizedBox(width: 12),
+                            Text(
+                              DateFormat.yMMMd().format(selectedSpecificDate),
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            Spacer(),
+                            Icon(Icons.arrow_drop_down,
+                                color: Color(0xFF8B5FBF)),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Range Selection
+                  if (selectedDateOption == 'range')
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Color(0xFF8B5FBF)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButton<String>(
+                        value: '2-4',
+                        isExpanded: true,
+                        underline: SizedBox(),
+                        items: [
+                          DropdownMenuItem(
+                              value: '0-1', child: Text('0-1 month ago')),
+                          DropdownMenuItem(
+                              value: '2-4', child: Text('2-4 months ago')),
+                          DropdownMenuItem(
+                              value: '4-6', child: Text('4-6 months ago')),
+                          DropdownMenuItem(
+                              value: '6-12', child: Text('6-12 months ago')),
+                          DropdownMenuItem(
+                              value: '1-2y', child: Text('1-2 years ago')),
+                          DropdownMenuItem(
+                              value: '2+y', child: Text('2+ years ago')),
+                        ],
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedDateOption = value!;
+                          });
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  final dateToUse = selectedDateOption == 'specific'
+                      ? selectedSpecificDate
+                      : getDateFromRange(selectedDateOption);
+                  _markVaccineAsTaken(vaccine, selectedDoses, dateToUse);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF8B5FBF),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text('Confirm'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _showScheduleDialog(VaccineRecord vaccine) async {
     DateTime initial = DateTime.now().add(const Duration(days: 1));
     if (vaccine.nextDueDate != null) {
       try {
         DateTime parsedDate = DateTime.parse(vaccine.nextDueDate!);
-        // Ensure initial date is not in the past
         if (parsedDate.isAfter(DateTime.now())) {
           initial = parsedDate;
         }
@@ -163,21 +522,21 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: DateTime.now(), // Can't schedule for the past
+      firstDate: DateTime.now(),
       lastDate: DateTime.now().add(
         const Duration(days: 365 * 5),
-      ), // 5 years out
+      ),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF6B46C1), // Header background
-              onPrimary: Colors.white, // Header text
-              onSurface: Colors.black, // Calendar text
+              primary: Color(0xFF6B46C1),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF6B46C1), // Button text
+                foregroundColor: const Color(0xFF6B46C1),
               ),
             ),
           ),
@@ -187,34 +546,26 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     );
 
     if (pickedDate != null) {
-      // User picked a date, now call the API
       _scheduleVaccine(vaccine, pickedDate);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- Create the two "display" lists based on your logic ---
     final List<VaccineRecord> completedDisplayList = [];
     final List<VaccineRecord> pendingDisplayList = [];
 
     for (final record in _allVaccines) {
       if (record.isCompleted) {
-        // If the whole series is done, just add it to completed
         completedDisplayList.add(record);
       } else {
-        // It's pending. Add the *next* dose to the pending list.
         pendingDisplayList.add(record);
-
-        // NOW, check if it has a "completed part" to show
         final completedPart = record.completedPart;
         if (completedPart != null) {
-          // Add the fake "Dose 1" to the completed list
           completedDisplayList.add(completedPart);
         }
       }
     }
-    // --- End of list processing ---
 
     return Scaffold(
       body: Container(
@@ -234,7 +585,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header Section
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
@@ -260,7 +610,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   ],
                 ),
               ),
-
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -273,7 +622,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   ),
                   child: Column(
                     children: [
-                      // Toggle Button
                       Padding(
                         padding: const EdgeInsets.all(24.0),
                         child: Container(
@@ -367,7 +715,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                           ),
                         ),
                       ),
-                      // Content
                       Expanded(
                         child: _buildContent(
                           completedDisplayList,
@@ -479,7 +826,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Show pending or completed based on toggle
             if (_showPending) ...[
               if (pending.isEmpty)
                 Center(
@@ -551,14 +897,12 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     );
   }
 
-  // CARD FOR PENDING VACCINES (with Schedule button)
+  // ✅ UPDATED: CARD FOR PENDING VACCINES (with Schedule AND Mark as Taken buttons)
   Widget _buildPendingCard(VaccineRecord vaccine) {
-    // Check if scheduled (has a future date)
     final bool isScheduled =
         vaccine.nextDueDate != null &&
         DateTime.parse(vaccine.nextDueDate!).isAfter(DateTime.now());
 
-    // Check if due (has a past date and is not completed)
     final bool isDue =
         vaccine.nextDueDate != null && !isScheduled && vaccine.isPending;
 
@@ -619,7 +963,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              vaccine.doseDisplay, // This will show "Dose 2 of 2"
+              vaccine.doseDisplay,
               style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
             const SizedBox(height: 4),
@@ -632,27 +976,59 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
               ),
             ),
             const Divider(height: 24),
-            // "Schedule" Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _showScheduleDialog(vaccine),
-                icon: Icon(
-                  isScheduled || isDue
-                      ? Icons.edit_calendar_outlined
-                      : Icons.calendar_today,
-                ),
-                label: Text(
-                  isScheduled || isDue ? 'Reschedule' : 'Schedule Now',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B5FBF),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            
+            // ✅ TWO BUTTONS: Schedule and Mark as Taken
+            Row(
+              children: [
+                // Schedule Button
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showScheduleDialog(vaccine),
+                    icon: Icon(
+                      isScheduled || isDue
+                          ? Icons.edit_calendar_outlined
+                          : Icons.calendar_today,
+                      size: 18,
+                    ),
+                    label: Text(
+                      isScheduled || isDue ? 'Reschedule' : 'Schedule',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5FBF),
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                
+                // Mark as Taken Button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showMarkAsTakenDialog(vaccine),
+                    icon: Icon(
+                      Icons.history,
+                      size: 18,
+                    ),
+                    label: Text(
+                      'Already Taken',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF8B5FBF),
+                      side: BorderSide(color: const Color(0xFF8B5FBF)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -663,7 +1039,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   // CARD FOR COMPLETED VACCINES (Read-only)
   Widget _buildCompletedCard(VaccineRecord vaccine) {
     String dateText = 'Date not recorded';
-    // Use lastDoseDate first
     final completionDate = vaccine.lastDoseDate;
     if (completionDate != null) {
       try {
@@ -701,7 +1076,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    vaccine.doseDisplay, // This will show "Dose 1 of 2 - Taken"
+                    vaccine.doseDisplay,
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 4),
