@@ -3,6 +3,41 @@
 // Enum to help categorize vaccines
 enum VaccineCategory { completed, scheduled, pendingUnscheduled }
 
+// lib/models/vaccine_record.dart
+
+// ... You may have other classes here like VaccineRecord ...
+
+// This model now holds the richer data from our backend
+class CertificateStub {
+  final int id;
+  final String originalFileName;
+  final DateTime createdAt;
+  final String vaccineName;
+  final String userName;
+  final bool isForFamilyMember;
+
+  CertificateStub({
+    required this.id,
+    required this.originalFileName,
+    required this.createdAt,
+    required this.vaccineName,
+    required this.userName,
+    required this.isForFamilyMember,
+  });
+
+  // Factory constructor to parse the JSON from the backend
+  factory CertificateStub.fromJson(Map<String, dynamic> json) {
+    return CertificateStub(
+      id: json['id'],
+      originalFileName: json['originalFileName'] ?? 'no_name_found.err',
+      createdAt: DateTime.parse(json['createdAt']),
+      vaccineName: json['vaccineName'] ?? 'Unknown Vaccine',
+      userName: json['userName'] ?? 'Unknown User',
+      isForFamilyMember: json['isForFamilyMember'] ?? false,
+    );
+  }
+}
+
 class VaccineRecord {
   final int id;
   final String name;
@@ -12,8 +47,8 @@ class VaccineRecord {
   final String? lastDoseDate;
   final int completedDoses;
   final int? totalDoses;
+  final List<CertificateStub> certificates;
 
-  // ✅ ADD THIS CONSTRUCTOR
   VaccineRecord({
     required this.id,
     required this.name,
@@ -23,6 +58,7 @@ class VaccineRecord {
     this.lastDoseDate,
     required this.completedDoses,
     this.totalDoses,
+    required this.certificates,
   });
 
   bool get isCompleted => status == 'completed';
@@ -32,15 +68,19 @@ class VaccineRecord {
     if (isCompleted) {
       return VaccineCategory.completed;
     }
-    if (isPending &&
-        nextDueDate != null &&
-        DateTime.parse(nextDueDate!).isAfter(DateTime.now())) {
-      return VaccineCategory.scheduled;
+    // Check for null and parsing
+    try {
+      if (isPending &&
+          nextDueDate != null &&
+          DateTime.parse(nextDueDate!).isAfter(DateTime.now())) {
+        return VaccineCategory.scheduled;
+      }
+    } catch (e) {
+      // Ignore invalid date formats
     }
     return VaccineCategory.pendingUnscheduled;
   }
 
-  // ✅ ADD THIS GETTER
   /// Creates a "fake" completed record from a pending one.
   VaccineRecord? get completedPart {
     // If it's pending AND has completed doses, create a fake "completed" version
@@ -54,6 +94,8 @@ class VaccineRecord {
         lastDoseDate: lastDoseDate,
         completedDoses: completedDoses,
         totalDoses: totalDoses,
+        certificates:
+            certificates, // ✅ FIX 1: Use 'certificates' not 'certList'
       );
     }
     return null;
@@ -94,6 +136,11 @@ class VaccineRecord {
       totalDoses = vaccineInfo['numberOfDoses'] as int?;
     }
 
+    // ✅ FIX 2: Add the logic to parse the certificates list
+    var certList = (json['certificates'] as List? ?? [])
+        .map((certJson) => CertificateStub.fromJson(certJson))
+        .toList();
+
     return VaccineRecord(
       id: json['id'] as int,
       name: vaccineInfo?['name'] as String? ?? 'Unknown Vaccine',
@@ -104,6 +151,7 @@ class VaccineRecord {
       lastDoseDate: json['lastDoseDate'] as String?,
       completedDoses: json['completedDoses'] as int? ?? 0,
       totalDoses: totalDoses,
+      certificates: certList, // ✅ FIX 2: Pass the list here
     );
   }
 }

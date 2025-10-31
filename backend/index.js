@@ -9,6 +9,7 @@ import findRoutes from './routes/findRoutes.js';
 import sequelize from './config/db.js'; // Import sequelize instance
 import testRoutes from './routes/testRoutes.js';
 import familyRoutes from './routes/familyRoutes.js';
+import certificateRoutes from './routes/certificateRoutes.js';
 
 import {startReminderService} from './services/reminderService.js'
 const app = express();
@@ -35,6 +36,7 @@ app.use('/api/vaccines', vaccineRoutes);
 app.use('/api/test',testRoutes);
 app.use('/api/find', findRoutes);
 app.use('/api/family', familyRoutes);
+app.use('/api/certificates', certificateRoutes);
 
 const PORT = process.env.PORT || 5000;
 startReminderService();

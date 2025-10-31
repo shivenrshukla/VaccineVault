@@ -1,5 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
+import VaccineCertificate from "./VaccineCertificate.js";
 
 const User = sequelize.define('User', {
     id: {
@@ -99,5 +100,7 @@ const User = sequelize.define('User', {
 // Self-referencing association
 User.hasMany(User, { as: 'FamilyMembers', foreignKey: 'familyAdminId' });
 User.belongsTo(User, { as: 'FamilyAdmin', foreignKey: 'familyAdminId' });
+User.hasMany(VaccineCertificate, { foreignKey: 'userId' });
+VaccineCertificate.belongsTo(User, { foreignKey: 'userId' });
 
 export default User;

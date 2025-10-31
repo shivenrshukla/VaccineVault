@@ -6,7 +6,8 @@ import 'vaccine_records_screen.dart';
 import 'knowledge_base_screen.dart';
 import 'vaccine_centres_screen.dart';
 import 'profile_page.dart';
-import 'travel_vaccines_screen.dart'; // NEW SCREEN
+import 'travel_vaccines_screen.dart';
+import 'my_certificates_screen.dart'; // ✅ NEW IMPORT
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -103,11 +104,29 @@ class HomeScreen extends StatelessWidget {
                           );
                         },
                       ),
+
+                      // ✅ NEW CARD ADDED
+                      _buildInfoCard(
+                        context: context,
+                        title: 'My Certificates',
+                        icon: Icons.file_copy,
+                        color: const Color(0xFF8B5FBF),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const MyCertificatesScreen(),
+                            ),
+                          );
+                        },
+                      ),
+
                       _buildInfoCard(
                         context: context,
                         title: 'Knowledge Base',
                         icon: Icons.info,
-                        color: const Color(0xFF8B5FBF),
+                        color: const Color(0xFFB794F6), // Changed color
                         onTap: () {
                           Navigator.push(
                             context,
@@ -119,9 +138,9 @@ class HomeScreen extends StatelessWidget {
                       ),
                       _buildInfoCard(
                         context: context,
-                        title: 'Travel Vaccines', // NEW CARD
+                        title: 'Travel Vaccines',
                         icon: Icons.flight_takeoff,
-                        color: const Color(0xFFB794F6),
+                        color: const Color(0xFFD6BCFA), // Changed color
                         onTap: () {
                           Navigator.push(
                             context,

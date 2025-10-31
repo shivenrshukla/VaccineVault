@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../models/vaccine_record.dart';
 
+// --- NEW IMPORT ---
+import 'vaccine_certificate_screen.dart'; // Import the new screen
+
 class VaccineRecordsScreen extends StatefulWidget {
   const VaccineRecordsScreen({super.key});
 
@@ -209,7 +212,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   void _showMarkAsTakenDialog(VaccineRecord vaccine) {
     int selectedDoses = 1;
     String selectedDateOption = 'specific';
-    DateTime selectedSpecificDate = DateTime.now().subtract(const Duration(days: 7));
+    DateTime selectedSpecificDate = DateTime.now().subtract(
+      const Duration(days: 7),
+    );
 
     showDialog(
       context: context,
@@ -423,16 +428,21 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.calendar_today,
-                                color: Color(0xFF8B5FBF), size: 20),
+                            Icon(
+                              Icons.calendar_today,
+                              color: Color(0xFF8B5FBF),
+                              size: 20,
+                            ),
                             SizedBox(width: 12),
                             Text(
                               DateFormat.yMMMd().format(selectedSpecificDate),
                               style: TextStyle(fontSize: 14),
                             ),
                             Spacer(),
-                            Icon(Icons.arrow_drop_down,
-                                color: Color(0xFF8B5FBF)),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              color: Color(0xFF8B5FBF),
+                            ),
                           ],
                         ),
                       ),
@@ -452,17 +462,29 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         underline: SizedBox(),
                         items: [
                           DropdownMenuItem(
-                              value: '0-1', child: Text('0-1 month ago')),
+                            value: '0-1',
+                            child: Text('0-1 month ago'),
+                          ),
                           DropdownMenuItem(
-                              value: '2-4', child: Text('2-4 months ago')),
+                            value: '2-4',
+                            child: Text('2-4 months ago'),
+                          ),
                           DropdownMenuItem(
-                              value: '4-6', child: Text('4-6 months ago')),
+                            value: '4-6',
+                            child: Text('4-6 months ago'),
+                          ),
                           DropdownMenuItem(
-                              value: '6-12', child: Text('6-12 months ago')),
+                            value: '6-12',
+                            child: Text('6-12 months ago'),
+                          ),
                           DropdownMenuItem(
-                              value: '1-2y', child: Text('1-2 years ago')),
+                            value: '1-2y',
+                            child: Text('1-2 years ago'),
+                          ),
                           DropdownMenuItem(
-                              value: '2+y', child: Text('2+ years ago')),
+                            value: '2+y',
+                            child: Text('2+ years ago'),
+                          ),
                         ],
                         onChanged: (value) {
                           setDialogState(() {
@@ -523,9 +545,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       context: context,
       initialDate: initial,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(
-        const Duration(days: 365 * 5),
-      ),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -549,6 +569,22 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       _scheduleVaccine(vaccine, pickedDate);
     }
   }
+
+  // --- NEW NAVIGATION METHOD ---
+  void _navigateToCertificateScreen(VaccineRecord vaccine) {
+    // We pass the whole vaccine record, which includes the list of certificates
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VaccineCertificateScreen(vaccine: vaccine),
+      ),
+    ).then((_) {
+      // This runs when we come BACK from the certificate screen.
+      // We should refresh the data in case a file was uploaded.
+      _fetchVaccines();
+    });
+  }
+  // -------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -897,11 +933,14 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     );
   }
 
-  // ✅ UPDATED: CARD FOR PENDING VACCINES (with Schedule AND Mark as Taken buttons)
+  //
+  // --- UPDATED: PENDING CARD ---
+  //
   Widget _buildPendingCard(VaccineRecord vaccine) {
     final bool isScheduled =
         vaccine.nextDueDate != null &&
-        DateTime.parse(vaccine.nextDueDate!).isAfter(DateTime.now());
+        DateTime.tryParse(vaccine.nextDueDate!)?.isAfter(DateTime.now()) ==
+            true;
 
     final bool isDue =
         vaccine.nextDueDate != null && !isScheduled && vaccine.isPending;
@@ -926,117 +965,134 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       dateIcon = Icons.event_busy;
     }
 
-    return Container(
+    return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF8B5FBF).withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color.fromARGB(13, 0, 0, 0),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(dateIcon, color: dateColor, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    vaccine.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2D3748),
+        onTap: () => _navigateToCertificateScreen(vaccine),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(dateIcon, color: dateColor, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          vaccine.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2D3748),
+                          ),
+                        ),
+                        if (vaccine.certificates.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.attach_file,
+                                  size: 14,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${vaccine.certificates.length} Certificate(s)',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              vaccine.doseDisplay,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              dateText,
-              style: TextStyle(
-                fontSize: 14,
-                color: dateColor,
-                fontWeight: FontWeight.w500,
+                  const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
               ),
-            ),
-            const Divider(height: 24),
-            
-            // ✅ TWO BUTTONS: Schedule and Mark as Taken
-            Row(
-              children: [
-                // Schedule Button
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showScheduleDialog(vaccine),
-                    icon: Icon(
-                      isScheduled || isDue
-                          ? Icons.edit_calendar_outlined
-                          : Icons.calendar_today,
-                      size: 18,
-                    ),
-                    label: Text(
-                      isScheduled || isDue ? 'Reschedule' : 'Schedule',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF8B5FBF),
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 8),
+              Text(
+                vaccine.doseDisplay,
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                dateText,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: dateColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Divider(height: 24),
+              Row(
+                children: [
+                  // Schedule Button
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showScheduleDialog(vaccine),
+                      icon: Icon(
+                        isScheduled || isDue
+                            ? Icons.edit_calendar_outlined
+                            : Icons.calendar_today,
+                        size: 18,
+                      ),
+                      label: Text(
+                        isScheduled || isDue ? 'Reschedule' : 'Schedule',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5FBF),
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                
-                // Mark as Taken Button
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _showMarkAsTakenDialog(vaccine),
-                    icon: Icon(
-                      Icons.history,
-                      size: 18,
-                    ),
-                    label: Text(
-                      'Already Taken',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF8B5FBF),
-                      side: BorderSide(color: const Color(0xFF8B5FBF)),
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  const SizedBox(width: 8),
+
+                  // Mark as Taken Button
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showMarkAsTakenDialog(vaccine),
+                      icon: Icon(Icons.history, size: 18),
+                      label: Text(
+                        'Already Taken',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF8B5FBF),
+                        side: BorderSide(color: const Color(0xFF8B5FBF)),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // CARD FOR COMPLETED VACCINES (Read-only)
+  //
+  // --- UPDATED: COMPLETED CARD ---
+  //
   Widget _buildCompletedCard(VaccineRecord vaccine) {
     String dateText = 'Date not recorded';
     final completionDate = vaccine.lastDoseDate;
@@ -1049,45 +1105,83 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       }
     }
 
-    return Container(
+    return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green.shade700, size: 28),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    vaccine.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2D3748),
+        onTap: () => _navigateToCertificateScreen(vaccine),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green.shade700,
+                      size: 28,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    vaccine.doseDisplay,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    dateText,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[800]),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            vaccine.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2D3748),
+                            ),
+                          ),
+                          if (vaccine.certificates.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.attach_file,
+                                    size: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${vaccine.certificates.length} Certificate(s)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.grey),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  vaccine.doseDisplay,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dateText,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
