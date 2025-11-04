@@ -153,10 +153,7 @@ class VaccineRecord {
 
     // Get totalDoses from UserVaccine level first
     int? totalDoses = json['totalDoses'] as int?;
-    if (totalDoses == null) {
-      // Fallback to brand or generic
-      totalDoses = brandInfo?['numberOfDoses'] ?? vaccineInfo?['numberOfDoses'];
-    }
+    totalDoses ??= brandInfo?['numberOfDoses'] ?? vaccineInfo?['numberOfDoses'];
 
     // ✅ FIX 2: Add the logic to parse the certificates list
     var certList = (json['certificates'] as List? ?? [])

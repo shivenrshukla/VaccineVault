@@ -274,9 +274,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     bool markAllDoses = false;
 
     // --- NEW: State for approximate date ---
-    _DateInputType _dateInputType = _DateInputType.specific;
-    String? _selectedRange;
-    final List<String> _dateRanges = const [
+    _DateInputType dateInputType = _DateInputType.specific;
+    String? selectedRange;
+    final List<String> dateRanges = const [
       '2-4 months ago',
       '6 months ago',
       '1 year ago',
@@ -295,7 +295,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     // --- End Dialog State ---
 
     // --- NEW: Helper function to calculate date from range ---
-    DateTime _calculateDateFromRange(String range) {
+    DateTime calculateDateFromRange(String range) {
       final now = DateTime.now();
       switch (range) {
         case '2-4 months ago':
@@ -549,12 +549,12 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   // --- NEW: Toggle Buttons ---
                   ToggleButtons(
                     isSelected: [
-                      _dateInputType == _DateInputType.specific,
-                      _dateInputType == _DateInputType.range,
+                      dateInputType == _DateInputType.specific,
+                      dateInputType == _DateInputType.range,
                     ],
                     onPressed: (index) {
                       setDialogState(() {
-                        _dateInputType = index == 0
+                        dateInputType = index == 0
                             ? _DateInputType.specific
                             : _DateInputType.range;
                       });
@@ -579,7 +579,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   SizedBox(height: 12),
 
                   // --- NEW: Conditional Input ---
-                  if (_dateInputType == _DateInputType.specific)
+                  if (dateInputType == _DateInputType.specific)
                     // 1. Specific Date/Time Picker
                     GestureDetector(
                       onTap: () async {
@@ -646,11 +646,11 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: DropdownButton<String>(
-                        value: _selectedRange,
+                        value: selectedRange,
                         hint: Text('Select a time range'),
                         isExpanded: true,
                         underline: SizedBox.shrink(),
-                        items: _dateRanges.map((range) {
+                        items: dateRanges.map((range) {
                           return DropdownMenuItem(
                             value: range,
                             child: Text(range),
@@ -658,7 +658,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         }).toList(),
                         onChanged: (value) {
                           setDialogState(() {
-                            _selectedRange = value;
+                            selectedRange = value;
                           });
                         },
                       ),
@@ -678,11 +678,11 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   // --- NEW: Date validation and selection logic ---
                   DateTime dateToSend;
 
-                  if (_dateInputType == _DateInputType.specific) {
+                  if (dateInputType == _DateInputType.specific) {
                     dateToSend = selectedSpecificDate;
                   } else {
                     // It's a range, check if one was selected
-                    if (_selectedRange == null) {
+                    if (selectedRange == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content:
@@ -693,7 +693,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                       );
                       return; // Stop submission
                     }
-                    dateToSend = _calculateDateFromRange(_selectedRange!);
+                    dateToSend = calculateDateFromRange(selectedRange!);
                   }
                   // ---
 

@@ -103,16 +103,18 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
 
           // Build complete address for accurate geocoding
           final addressParts = <String>[];
-          if (data['addressPart1'] != null)
+          if (data['addressPart1'] != null) {
             addressParts.add(data['addressPart1']);
+          }
           if (data['addressPart2'] != null &&
               data['addressPart2'].toString().isNotEmpty) {
             addressParts.add(data['addressPart2']);
           }
           if (data['city'] != null) addressParts.add(data['city']);
           if (data['state'] != null) addressParts.add(data['state']);
-          if (data['pinCode'] != null)
+          if (data['pinCode'] != null) {
             addressParts.add(data['pinCode'].toString());
+          }
 
           _userAddress = addressParts.join(', ');
 
