@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../models/vaccine_record.dart';
+import '../widgets/disclaimer_dialog.dart';
 
 class TravelVaccinesScreen extends StatefulWidget {
   const TravelVaccinesScreen({super.key});
@@ -91,6 +92,9 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showDisclaimerDialog(context);
+    });
     _initializeAndFetch();
   }
 

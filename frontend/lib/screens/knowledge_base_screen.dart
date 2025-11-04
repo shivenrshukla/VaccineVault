@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/disclaimer_dialog.dart';
 
 class KnowledgeBaseScreen extends StatefulWidget {
   const KnowledgeBaseScreen({super.key});
@@ -18,6 +19,14 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
     'Travel Vaccines',
     'Special Purpose',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showDisclaimerDialog(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
