@@ -4,7 +4,9 @@ import {
     updateVaccinationStatus,
     scheduleVaccine,
     getTravelVaccines,
-    markVaccineAsTaken
+    markVaccineAsTaken,
+    selectVaccineBrand,
+    getVaccineBrands
 } from "../controllers/vaccineController.js";
 import { authenticate } from "../middleware/authMiddleware.js";
 
@@ -19,6 +21,11 @@ router.put("/status/:userVaccineId", authenticate, updateVaccinationStatus);
 router.put('/schedule/:userVaccineId', authenticate, scheduleVaccine);
 
 router.put('/mark-taken/:userVaccineId', authenticate, markVaccineAsTaken);
+
+// ✅ UPDATED ROUTE: Changed param from :vaccineId to :userVaccineId
+router.get('/brands/for-user-vaccine/:userVaccineId', authenticate, getVaccineBrands);
+
+router.put('/brands/:userVaccineId', authenticate, selectVaccineBrand)
 
 router.get("/travel",getTravelVaccines);
 export default router;

@@ -5,9 +5,32 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../models/vaccine_record.dart';
+import 'vaccine_certificate_screen.dart';
 
-// --- NEW IMPORT ---
-import 'vaccine_certificate_screen.dart'; // Import the new screen
+// ✅ NEW: Minimal model to hold brand data fetched for the dialog
+class _Brand {
+  final int id;
+  final String brandName;
+  final int numberOfDoses;
+
+  _Brand({
+    required this.id,
+    required this.brandName,
+    required this.numberOfDoses,
+  });
+
+  factory _Brand.fromJson(Map<String, dynamic> json) {
+    return _Brand(
+      id: json['id'],
+      brandName: json['brandName'] ?? 'Unknown Brand',
+      numberOfDoses: json['numberOfDoses'] ?? 1,
+    );
+  }
+}
+
+// ✅ NEW: Add the enum definition here
+enum _DateInputType { specific, range }
+enum _DisplayCategory { pending, completed, booster }
 
 class VaccineRecordsScreen extends StatefulWidget {
   const VaccineRecordsScreen({super.key});
@@ -20,7 +43,8 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   List<VaccineRecord> _allVaccines = [];
   bool _isLoading = true;
   String? _error;
-  bool _showPending = true;
+  // bool _showPending = true;
+  _DisplayCategory _selectedCategory = _DisplayCategory.pending;
 
   static const String apiBaseUrl = 'http://localhost:5000';
   final AuthService _authService = AuthService();
@@ -67,9 +91,8 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
-          _allVaccines = data
-              .map((json) => VaccineRecord.fromJson(json))
-              .toList();
+          _allVaccines =
+              data.map((json) => VaccineRecord.fromJson(json)).toList();
           _isLoading = false;
         });
       } else {
@@ -91,6 +114,8 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     VaccineRecord vaccine,
     DateTime selectedDate,
   ) async {
+    if (!mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -109,49 +134,52 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           'nextDueDate': selectedDate.toIso8601String().split('T')[0],
         }),
       );
+
+      if (!mounted) return;
       Navigator.pop(context);
+
       if (response.statusCode == 200) {
         await _fetchVaccines();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✓ ${vaccine.name} scheduled!'),
-              backgroundColor: const Color(0xFF10B981),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to schedule: ${response.body}'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      Navigator.pop(context);
-      if (mounted) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('✓ ${vaccine.name} scheduled!'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to schedule: ${response.body}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
-  // ✅ NEW METHOD: Mark vaccine as already taken
+  // ✅ UPDATED METHOD: Mark vaccine as already taken
   Future<void> _markVaccineAsTaken(
-    VaccineRecord vaccine,
-    int dosesCompleted,
-    DateTime dateTaken,
-  ) async {
+    VaccineRecord vaccine, {
+    required int dosesCompleted,
+    required DateTime dateTaken,
+    required bool markAllAsCompleted,
+    int? brandId,
+  }) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -159,266 +187,433 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         child: CircularProgressIndicator(color: Color(0xFF8B5FBF)),
       ),
     );
+
     try {
+      // ✅ Build the request body
+      final Map<String, dynamic> requestBody = {
+        // ✅ Send the full ISO string, though backend only uses the date part for now
+        'dateTaken': dateTaken.toIso8601String().split('T')[0],
+        'markAllAsCompleted': markAllAsCompleted,
+        'dosesCompleted': dosesCompleted, // Send anyway
+      };
+      if (brandId != null) {
+        requestBody['brandId'] = brandId;
+      }
+
       final response = await http.put(
         Uri.parse('$apiBaseUrl/api/vaccines/mark-taken/${vaccine.id}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_authToken',
         },
-        body: json.encode({
-          'dosesCompleted': dosesCompleted,
-          'dateTaken': dateTaken.toIso8601String().split('T')[0],
-        }),
+        body: json.encode(requestBody),
       );
-      Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
       if (response.statusCode == 200) {
         await _fetchVaccines();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('✓ ${vaccine.name} marked as taken!'),
-              backgroundColor: const Color(0xFF10B981),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to mark as taken: ${response.body}'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      Navigator.pop(context);
-      if (mounted) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('✓ ${vaccine.name} marked as taken!'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        // ✅ Handle specific errors from the backend
+        String errorMessage = 'Failed to mark as taken';
+        try {
+          final data = json.decode(response.body);
+          if (data['message'] != null) {
+            errorMessage = data['message'];
+          } else {
+            errorMessage = response.body;
+          }
+        } catch (_) {
+          errorMessage = response.body;
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
-  // ✅ NEW METHOD: Show dialog to mark as taken
+  // ✅ COMPLETELY REBUILT METHOD: Show dialog to mark as taken
+  // ✅ COMPLETELY REBUILT METHOD: Show dialog to mark as taken
   void _showMarkAsTakenDialog(VaccineRecord vaccine) {
+    // --- NEW: Enum for date input type ---
+    // enum _DateInputType { specific, range }
+
+    // --- Dialog State ---
     int selectedDoses = 1;
-    String selectedDateOption = 'specific';
-    DateTime selectedSpecificDate = DateTime.now().subtract(
-      const Duration(days: 7),
-    );
+    // MODIFICATION: Initialize with a clean date (noon)
+    DateTime selectedSpecificDate = DateUtils.dateOnly(
+            DateTime.now().subtract(const Duration(days: 7)))
+        .add(const Duration(hours: 12));
+    bool markAllDoses = false;
+
+    // --- NEW: State for approximate date ---
+    _DateInputType _dateInputType = _DateInputType.specific;
+    String? _selectedRange;
+    final List<String> _dateRanges = const [
+      '2-4 months ago',
+      '6 months ago',
+      '1 year ago',
+      '2+ years ago'
+    ];
+    // ---
+
+    // Brand state
+    List<_Brand> availableBrands = [];
+    _Brand? selectedBrand;
+    bool isBrandLoading = true;
+    bool brandFetchFailed = false;
+
+    // This tracks the *actual* total doses based on brand selection
+    int totalDosesForDisplay = vaccine.totalDoses ?? 1;
+    // --- End Dialog State ---
+
+    // --- NEW: Helper function to calculate date from range ---
+    DateTime _calculateDateFromRange(String range) {
+      final now = DateTime.now();
+      switch (range) {
+        case '2-4 months ago':
+          // Approximates as 3 months ago
+          return now.subtract(const Duration(days: 3 * 30));
+        case '6 months ago':
+          // Approximates as 6 months ago
+          return now.subtract(const Duration(days: 6 * 30));
+        case '1 year ago':
+          return now.subtract(const Duration(days: 365));
+        case '2+ years ago':
+          // Approximates as 2 years ago
+          return now.subtract(const Duration(days: 2 * 365));
+        default:
+          return now;
+      }
+    }
+
+    // Function to fetch brands for this specific user vaccine record
+    Future<void> fetchBrands(StateSetter setDialogState) async {
+      try {
+        setDialogState(() {
+          isBrandLoading = true;
+          brandFetchFailed = false;
+        });
+
+        // UPDATED API CALL
+        final res = await http.get(
+          Uri.parse(
+              '$apiBaseUrl/api/vaccines/brands/for-user-vaccine/${vaccine.id}'),
+          headers: {'Authorization': 'Bearer $_authToken'},
+        );
+
+        if (res.statusCode == 200) {
+          final data = json.decode(res.body);
+          final brandList = (data['brands'] as List? ?? [])
+              .map((json) => _Brand.fromJson(json))
+              .toList();
+
+          setDialogState(() {
+            availableBrands = brandList;
+            isBrandLoading = false;
+            // If brands exist, pre-select the first one
+            if (availableBrands.isNotEmpty) {
+              selectedBrand = availableBrands.first;
+              totalDosesForDisplay = selectedBrand!.numberOfDoses;
+              selectedDoses = 1; // Reset doses
+            } else {
+              // No brands, use the generic vaccine's dose count
+              totalDosesForDisplay = vaccine.totalDoses ?? 1;
+            }
+          });
+        } else {
+          setDialogState(() {
+            isBrandLoading = false;
+            brandFetchFailed = true;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setDialogState(() {
+            isBrandLoading = false;
+            brandFetchFailed = true;
+          });
+        }
+      }
+    }
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          // Calculate date based on range selection
-          DateTime getDateFromRange(String range) {
-            final now = DateTime.now();
-            switch (range) {
-              case '0-1':
-                return now.subtract(Duration(days: 15));
-              case '2-4':
-                return now.subtract(Duration(days: 90));
-              case '4-6':
-                return now.subtract(Duration(days: 150));
-              case '6-12':
-                return now.subtract(Duration(days: 270));
-              case '1-2y':
-                return now.subtract(Duration(days: 540));
-              case '2+y':
-                return now.subtract(Duration(days: 900));
-              default:
-                return selectedSpecificDate;
-            }
+          // Fetch brands *once* when the dialog builds
+          if (isBrandLoading && !brandFetchFailed) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              fetchBrands(setDialogState);
+            });
           }
 
           return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(
               children: [
                 Icon(Icons.history, color: Color(0xFF8B5FBF)),
                 SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Mark as Already Taken',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ),
+                    child: Text('Mark as Already Taken',
+                        style: TextStyle(fontSize: 18))),
               ],
             ),
             content: SingleChildScrollView(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  /// Vaccine name
                   Text(
                     vaccine.name,
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2D3748),
-                    ),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2D3748)),
                   ),
                   SizedBox(height: 20),
 
-                  // Dose Selection
-                  Text(
-                    'How many doses have you completed?',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[800],
+                  /// BRAND DROPDOWN
+                  if (isBrandLoading)
+                    Center(
+                        child:
+                            CircularProgressIndicator(color: Color(0xFF8B5FBF))),
+
+                  if (!isBrandLoading && brandFetchFailed)
+                    Center(
+                        child: Text('Failed to load brands.',
+                            style: TextStyle(color: Colors.red))),
+
+                  // Only show brand dropdown if brands are available
+                  if (!isBrandLoading && availableBrands.isNotEmpty) ...[
+                    Text(
+                      'Select Brand:*',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800]),
                     ),
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Color(0xFF8B5FBF)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButton<int>(
-                      value: selectedDoses,
-                      isExpanded: true,
-                      underline: SizedBox(),
-                      items: List.generate(
-                        vaccine.totalDoses ?? 1,
-                        (index) => DropdownMenuItem(
-                          value: index + 1,
-                          child: Text(
-                            vaccine.totalDoses != null
-                                ? 'Dose ${index + 1} of ${vaccine.totalDoses}'
-                                : 'Dose ${index + 1}',
-                          ),
-                        ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Color(0xFF8B5FBF)),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          selectedDoses = value!;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(height: 20),
-
-                  // Date Selection
-                  Text(
-                    'When did you take it?',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  SizedBox(height: 8),
-
-                  // Date Option Toggle
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setDialogState(() {
-                              selectedDateOption = 'specific';
-                            }),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: selectedDateOption == 'specific'
-                                    ? Color(0xFF8B5FBF)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Specific Date',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: selectedDateOption == 'specific'
-                                      ? Colors.white
-                                      : Colors.grey[700],
-                                ),
-                              ),
+                      child: DropdownButton<_Brand>(
+                        value: selectedBrand,
+                        isExpanded: true,
+                        underline: SizedBox.shrink(),
+                        items: availableBrands.map((brand) {
+                          return DropdownMenuItem(
+                            value: brand,
+                            child: Text(
+                              '${brand.brandName} (${brand.numberOfDoses} doses)',
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setDialogState(() {
-                              selectedDateOption = 'range';
-                            }),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: selectedDateOption == 'range'
-                                    ? Color(0xFF8B5FBF)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Time Range',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: selectedDateOption == 'range'
-                                      ? Colors.white
-                                      : Colors.grey[700],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedBrand = value;
+                            // Update total doses based on brand selection
+                            totalDosesForDisplay =
+                                value?.numberOfDoses ?? (vaccine.totalDoses ?? 1);
+                            // Reset selected doses if it's now invalid
+                            if (selectedDoses > totalDosesForDisplay) {
+                              selectedDoses = totalDosesForDisplay;
+                            }
+                          });
+                        },
+                      ),
                     ),
+                    SizedBox(height: 20),
+                  ],
+
+                  /// "ALL DOSES" CHECKBOX
+                  // (This logic is already correct as per your request)
+                  CheckboxListTile(
+                    title: Text(
+                      'All doses of this vaccine are taken',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800]),
+                    ),
+                    value: markAllDoses,
+                    onChanged: (bool? value) {
+                      setDialogState(() {
+                        markAllDoses = value ?? false;
+                        if (markAllDoses) {
+                          // If "all" is checked, set doses to max
+                          selectedDoses = totalDosesForDisplay;
+                        } else {
+                          // If unchecked, reset to 1
+                          selectedDoses = 1;
+                        }
+                      });
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: Color(0xFF8B5FBF),
                   ),
                   SizedBox(height: 12),
 
-                  // Specific Date Picker
-                  if (selectedDateOption == 'specific')
-                    GestureDetector(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedSpecificDate,
-                          firstDate: DateTime.now().subtract(
-                            Duration(days: 365 * 10),
+                  /// DOSE DROPDOWN
+                  // Disable dropdown if "all doses" is checked
+                  IgnorePointer(
+                    ignoring: markAllDoses,
+                    child: Opacity(
+                      opacity: markAllDoses ? 0.5 : 1.0,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'How many doses have you completed?',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800]),
                           ),
-                          lastDate: DateTime.now(),
-                          builder: (context, child) {
-                            return Theme(
-                              data: Theme.of(context).copyWith(
-                                colorScheme: ColorScheme.light(
-                                  primary: Color(0xFF6B46C1),
-                                  onPrimary: Colors.white,
-                                  onSurface: Colors.black,
+                          SizedBox(height: 8),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Color(0xFF8B5FBF)),
+                              borderRadius: BorderRadius.circular(8),
+                              color: markAllDoses
+                                  ? Colors.grey[200]
+                                  : Colors.white,
+                            ),
+                            child: DropdownButton<int>(
+                              value: selectedDoses,
+                              isExpanded: true,
+                              underline: SizedBox.shrink(),
+                              // Use dynamic totalDosesForDisplay
+                              items: List.generate(
+                                totalDosesForDisplay,
+                                (i) => DropdownMenuItem(
+                                  value: i + 1,
+                                  child: Text(
+                                      'Dose ${i + 1} of $totalDosesForDisplay'),
                                 ),
                               ),
-                              child: child!,
-                            );
-                          },
+                              onChanged: (v) =>
+                                  setDialogState(() => selectedDoses = v!),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+
+                  /// --- NEW: DATE INPUT SECTION ---
+                  Text(
+                    'When did you take the *last* dose?',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800]),
+                  ),
+                  SizedBox(height: 8),
+                  // --- NEW: Toggle Buttons ---
+                  ToggleButtons(
+                    isSelected: [
+                      _dateInputType == _DateInputType.specific,
+                      _dateInputType == _DateInputType.range,
+                    ],
+                    onPressed: (index) {
+                      setDialogState(() {
+                        _dateInputType = index == 0
+                            ? _DateInputType.specific
+                            : _DateInputType.range;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    selectedColor: Colors.white,
+                    fillColor: Color(0xFF8B5FBF),
+                    color: Color(0xFF8B5FBF),
+                    borderColor: Color(0xFF8B5FBF),
+                    selectedBorderColor: Color(0xFF8B5FBF),
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('Specific Date'),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('Approx. Range'),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+
+                  // --- NEW: Conditional Input ---
+                  if (_dateInputType == _DateInputType.specific)
+                    // 1. Specific Date/Time Picker
+                    GestureDetector(
+                      onTap: () async {
+                        // 1. Pick Date
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: selectedSpecificDate,
+                          firstDate: DateTime(1900), // Allow historical dates
+                          lastDate: DateTime.now(),
                         );
-                        if (picked != null) {
-                          setDialogState(() {
-                            selectedSpecificDate = picked;
-                          });
-                        }
+                        if (pickedDate == null) return; // User canceled date
+                        if (!context.mounted) return;
+
+                        // 2. Pick Time
+                        final pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime:
+                              TimeOfDay.fromDateTime(selectedSpecificDate),
+                        );
+
+                        // 3. Combine Date and Time
+                        // If user cancels time, default to 12:00 PM (noon)
+                        final time =
+                            pickedTime ?? const TimeOfDay(hour: 12, minute: 0);
+
+                        setDialogState(() {
+                          selectedSpecificDate = DateTime(
+                            pickedDate.year,
+                            pickedDate.month,
+                            pickedDate.day,
+                            time.hour,
+                            time.minute,
+                          );
+                        });
                       },
                       child: Container(
                         padding: EdgeInsets.all(12),
@@ -428,28 +623,22 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.calendar_today,
-                              color: Color(0xFF8B5FBF),
-                              size: 20,
-                            ),
+                            Icon(Icons.calendar_today,
+                                color: Color(0xFF8B5FBF), size: 20),
                             SizedBox(width: 12),
-                            Text(
-                              DateFormat.yMMMd().format(selectedSpecificDate),
-                              style: TextStyle(fontSize: 14),
-                            ),
+                            // MODIFICATION: Format to show date and time
+                            Text(DateFormat.yMMMd()
+                                .add_jm()
+                                .format(selectedSpecificDate)),
                             Spacer(),
-                            Icon(
-                              Icons.arrow_drop_down,
-                              color: Color(0xFF8B5FBF),
-                            ),
+                            Icon(Icons.arrow_drop_down,
+                                color: Color(0xFF8B5FBF)),
                           ],
                         ),
                       ),
-                    ),
-
-                  // Range Selection
-                  if (selectedDateOption == 'range')
+                    )
+                  else
+                    // 2. Approximate Range Dropdown
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
@@ -457,60 +646,80 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: DropdownButton<String>(
-                        value: '2-4',
+                        value: _selectedRange,
+                        hint: Text('Select a time range'),
                         isExpanded: true,
-                        underline: SizedBox(),
-                        items: [
-                          DropdownMenuItem(
-                            value: '0-1',
-                            child: Text('0-1 month ago'),
-                          ),
-                          DropdownMenuItem(
-                            value: '2-4',
-                            child: Text('2-4 months ago'),
-                          ),
-                          DropdownMenuItem(
-                            value: '4-6',
-                            child: Text('4-6 months ago'),
-                          ),
-                          DropdownMenuItem(
-                            value: '6-12',
-                            child: Text('6-12 months ago'),
-                          ),
-                          DropdownMenuItem(
-                            value: '1-2y',
-                            child: Text('1-2 years ago'),
-                          ),
-                          DropdownMenuItem(
-                            value: '2+y',
-                            child: Text('2+ years ago'),
-                          ),
-                        ],
+                        underline: SizedBox.shrink(),
+                        items: _dateRanges.map((range) {
+                          return DropdownMenuItem(
+                            value: range,
+                            child: Text(range),
+                          );
+                        }).toList(),
                         onChanged: (value) {
                           setDialogState(() {
-                            selectedDateOption = value!;
+                            _selectedRange = value;
                           });
                         },
                       ),
                     ),
+                  // --- END OF NEW DATE SECTION ---
                 ],
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
+                child:
+                    Text('Cancel', style: TextStyle(color: Colors.grey[600])),
               ),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  final dateToUse = selectedDateOption == 'specific'
-                      ? selectedSpecificDate
-                      : getDateFromRange(selectedDateOption);
-                  _markVaccineAsTaken(vaccine, selectedDoses, dateToUse);
+                onPressed: () async {
+                  // --- NEW: Date validation and selection logic ---
+                  DateTime dateToSend;
+
+                  if (_dateInputType == _DateInputType.specific) {
+                    dateToSend = selectedSpecificDate;
+                  } else {
+                    // It's a range, check if one was selected
+                    if (_selectedRange == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content:
+                              Text('Please select an approximate time range.'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      return; // Stop submission
+                    }
+                    dateToSend = _calculateDateFromRange(_selectedRange!);
+                  }
+                  // ---
+
+                  // Validation: If brands exist, one must be selected
+                  if (availableBrands.isNotEmpty && selectedBrand == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text('Please select a brand for this vaccine.'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+
+                  Navigator.pop(context); // Close dialog
+
+                  // Call updated method with all parameters
+                  await _markVaccineAsTaken(
+                    vaccine,
+                    dosesCompleted: selectedDoses,
+                    dateTaken: dateToSend, // ✅ Use the new date logic
+                    markAllAsCompleted: markAllDoses,
+                    brandId: selectedBrand?.id,
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFF8B5FBF),
@@ -586,19 +795,112 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   }
   // -------------------------
 
+  // ✅ NEW: Helper widget for empty states
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48.0),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 64,
+              color: Colors.grey[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: TextStyle(color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleTab(
+    BuildContext context, {
+    required String text,
+    required IconData icon,
+    required _DisplayCategory category,
+    required Color activeColor,
+  }) {
+    final bool isActive = _selectedCategory == category;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedCategory = category),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isActive ? activeColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isActive ? Colors.white : Colors.grey[600],
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                text,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isActive ? Colors.white : Colors.grey[600],
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ✅ NEW: Add a third list for boosters
     final List<VaccineRecord> completedDisplayList = [];
     final List<VaccineRecord> pendingDisplayList = [];
+    final List<VaccineRecord> boosterDisplayList = [];
 
+    // ✅ NEW: This logic sorts into all 3 lists
     for (final record in _allVaccines) {
       if (record.isCompleted) {
+        // This is a fully completed, non-recurring vaccine.
         completedDisplayList.add(record);
       } else {
-        pendingDisplayList.add(record);
+        // This is PENDING (status != 'completed')
+
+        // Check for its "completed" part (for partials/boosters)
         final completedPart = record.completedPart;
         if (completedPart != null) {
           completedDisplayList.add(completedPart);
+        }
+
+        // Now, sort the *pending* record itself
+        bool isBooster = record.totalDoses != null &&
+            record.completedDoses >= record.totalDoses!;
+
+        if (isBooster) {
+          boosterDisplayList.add(record);
+        } else {
+          pendingDisplayList.add(record);
         }
       }
     }
@@ -658,6 +960,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   ),
                   child: Column(
                     children: [
+                      // --- THIS IS THE TOGGLE BAR SECTION ---
                       Padding(
                         padding: const EdgeInsets.all(24.0),
                         child: Container(
@@ -667,94 +970,40 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                           ),
                           child: Row(
                             children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () =>
-                                      setState(() => _showPending = true),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _showPending
-                                          ? const Color(0xFF8B5FBF)
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.schedule,
-                                          color: _showPending
-                                              ? Colors.white
-                                              : Colors.grey[600],
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Pending (${pendingDisplayList.length})',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: _showPending
-                                                ? Colors.white
-                                                : Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                              _buildToggleTab(
+                                context,
+                                text: 'Pending (${pendingDisplayList.length})',
+                                icon: Icons.schedule,
+                                category: _DisplayCategory.pending,
+                                activeColor: const Color(0xFF8B5FBF),
                               ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () =>
-                                      setState(() => _showPending = false),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: !_showPending
-                                          ? const Color(0xFF10B981)
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.check_circle,
-                                          color: !_showPending
-                                              ? Colors.white
-                                              : Colors.grey[600],
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Completed (${completedDisplayList.length})',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: !_showPending
-                                                ? Colors.white
-                                                : Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                              _buildToggleTab(
+                                context,
+                                text: 'Booster (${boosterDisplayList.length})',
+                                icon: Icons.health_and_safety_outlined,
+                                category: _DisplayCategory.booster,
+                                activeColor: const Color(0xFF3182CE),
                               ),
-                            ],
+                              _buildToggleTab(
+                                context,
+                                text: 'Completed (${completedDisplayList.length})',
+                                icon: Icons.check_circle,
+                                category: _DisplayCategory.completed,
+                                activeColor: const Color(0xFF10B981),
+                              ),
+                            ], // ⬅️ Row's children END here
                           ),
                         ),
-                      ),
+                      ), // ⬅️ Padding (for toggles) ENDS here
+
+                      // --- ✅ CORRECTED: ---
+                      // The Expanded content starts HERE,
+                      // as the *next* child of the Column.
                       Expanded(
                         child: _buildContent(
                           completedDisplayList,
                           pendingDisplayList,
+                          boosterDisplayList,
                         ),
                       ),
                     ],
@@ -771,6 +1020,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   Widget _buildContent(
     List<VaccineRecord> completed,
     List<VaccineRecord> pending,
+    List<VaccineRecord> boosters,
   ) {
     if (_isLoading) {
       return const Center(
@@ -862,83 +1112,65 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_showPending) ...[
-              if (pending.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48.0),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          size: 64,
-                          color: Colors.grey[300],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No Pending Vaccines',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'All your vaccines are up to date!',
-                          style: TextStyle(color: Colors.grey[500]),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                ...pending.map((vaccine) => _buildPendingCard(vaccine)),
-            ] else ...[
-              if (completed.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48.0),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.vaccines_outlined,
-                          size: 64,
-                          color: Colors.grey[300],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No Completed Vaccines',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Completed vaccines will appear here.',
-                          style: TextStyle(color: Colors.grey[500]),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                ...completed.map((vaccine) => _buildCompletedCard(vaccine)),
-            ],
+            // This switch statement displays the correct list
+            // based on the _selectedCategory state
+            Builder(
+              builder: (context) {
+                switch (_selectedCategory) {
+                  case _DisplayCategory.pending:
+                    if (pending.isEmpty) {
+                      return _buildEmptyState(
+                        icon: Icons.check_circle_outline,
+                        title: 'No Pending Vaccines',
+                        message: 'All your vaccines are up to date!',
+                      );
+                    }
+                    return Column(
+                      children: pending
+                          .map((vaccine) => _buildPendingCard(vaccine))
+                          .toList(),
+                    );
+                  
+                  case _DisplayCategory.booster:
+                    if (boosters.isEmpty) {
+                      return _buildEmptyState(
+                        icon: Icons.shield_outlined,
+                        title: 'No Boosters Due',
+                        message: 'Your upcoming boosters will appear here.',
+                      );
+                    }
+                    // Boosters use the same card as pending
+                    return Column(
+                      children: boosters
+                          .map((vaccine) => _buildPendingCard(vaccine))
+                          .toList(),
+                    );
+                  
+                  case _DisplayCategory.completed:
+                    if (completed.isEmpty) {
+                      return _buildEmptyState(
+                        icon: Icons.vaccines_outlined,
+                        title: 'No Completed Vaccines',
+                        message: 'Completed vaccines will appear here.',
+                      );
+                    }
+                    return Column(
+                      children: completed
+                          .map((vaccine) => _buildCompletedCard(vaccine))
+                          .toList(),
+                    );
+                }
+              },
+            ),
           ],
         ),
       ),
     );
   }
+  // --- PENDING CARD (No changes needed) ---
 
-  //
-  // --- UPDATED: PENDING CARD ---
-  //
   Widget _buildPendingCard(VaccineRecord vaccine) {
-    final bool isScheduled =
-        vaccine.nextDueDate != null &&
+    final bool isScheduled = vaccine.nextDueDate != null &&
         DateTime.tryParse(vaccine.nextDueDate!)?.isAfter(DateTime.now()) ==
             true;
 
@@ -1091,7 +1323,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   }
 
   //
-  // --- UPDATED: COMPLETED CARD ---
+  // --- COMPLETED CARD (No changes needed) ---
   //
   Widget _buildCompletedCard(VaccineRecord vaccine) {
     String dateText = 'Date not recorded';

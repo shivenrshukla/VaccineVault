@@ -41,7 +41,7 @@ class _VaccineCertificateScreenState extends State<VaccineCertificateScreen> {
         withData: kIsWeb, // --- KEY CHANGE: Tell picker to get bytes on web
       );
 
-      if (result != null && result.files.single != null) {
+      if (result != null) {
         setState(() => _isUploading = true);
 
         // --- PLATFORM-AWARE LOGIC ---
@@ -161,7 +161,7 @@ class _VaccineCertificateScreenState extends State<VaccineCertificateScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _isUploading ? null : _pickAndUploadFile,
                     icon: _isUploading
-                        ? Container(
+                        ? SizedBox(
                             width: 24,
                             height: 24,
                             child: const CircularProgressIndicator(

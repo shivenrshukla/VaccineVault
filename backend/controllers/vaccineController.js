@@ -1,7 +1,7 @@
 import User from "../models/User.js"
 import Vaccine from "../models/Vaccine.js"
 import {Op} from "sequelize";
-import UserVaccine from "../models/userVaccine.js";
+import UserVaccine from "../models/UserVaccine.js"; // Corrected path
 
 // --- HELPER FUNCTIONS ---
 function addDaysToDateOnly(dateString, daysToAdd) {
@@ -39,14 +39,14 @@ export const getRecommendedVaccines = async (req, res) => {
         const applicableVaccines = await Vaccine.findAll({
             where: {
                 ageOfFirstDoseMonths: { [Op.lte]: ageInMonths },
+                // ✅ --- KEY CHANGE ---
+                // Only find the "generic" vaccines for recommendation
+                brandName: null
             }
         });
 
         for (const vaccine of applicableVaccines) {
-            // Calculate the *recommended* due date for the first dose
             const initialDueDate = addMonthsToDateOnly(user.dateOfBirth, vaccine.ageOfFirstDoseMonths);
-
-            // Use findOrCreate
             await UserVaccine.findOrCreate({
                 where: { userId: userId, vaccineId: vaccine.id },
                 defaults: {
@@ -54,19 +54,18 @@ export const getRecommendedVaccines = async (req, res) => {
                     vaccineId: vaccine.id,
                     status: 'pending',
                     completedDoses: 0,
-                    // ✅ Set the recommended date ONLY when creating the record
                     nextDueDate: initialDueDate
                 }
             });
-
-            // ❌ REMOVED the problematic 'if (!created...)' block entirely.
-            // We no longer automatically reset the date if it's null later.
         }
 
-        // Return all of the user's vaccine records
         const allVaccines = await UserVaccine.findAll({
             where: { userId },
-            include: [{ model: Vaccine }], // Include the full vaccine model
+            // ✅ Include the full Vaccine model, not just attributes
+            include: [
+              { model: Vaccine },
+              { model: Vaccine, as: 'BrandTaken' }
+            ], 
             order: [ ['status', 'ASC'], ['nextDueDate', 'ASC'] ]
         });
 
@@ -89,48 +88,84 @@ export const updateVaccinationStatus = async (req, res) => {
 
     const userVaccine = await UserVaccine.findOne({
       where: { id: userVaccineId, userId: userId },
-      include: [{ model: Vaccine }] // Include the full Vaccine model
+      include: [{ model: Vaccine }]
     });
 
     if (!userVaccine) { 
       return res.status(404).json({ message: 'Vaccine record not found' });
     }
 
-    if (hasTaken) {
-      userVaccine.completedDoses += 1;
+    // Only process if they are marking it as "taken"
+    if (!hasTaken) {
+      // Logic for "not taken" (e.g., reset, snooze) could go here
+      // For now, we just return
+      return res.status(200).json({ message: 'No action taken', updatedVaccine: userVaccine });
+    }
+
+    // --- ✅ BRAND SELECTION LOGIC ---
+    // Check if this is the FIRST dose AND the current vaccine is a GENERIC one
+    if (userVaccine.completedDoses === 0 && userVaccine.Vaccine.brandName === null) {
+      const genericVaccine = userVaccine.Vaccine;
+      
+      // Find all available brands for this generic vaccine
+      const availableBrands = await Vaccine.findAll({
+        where: {
+          name: genericVaccine.name,
+          brandName: { [Op.not]: null }
+        }
+      });
+
+      // Update the record for the first dose
+      userVaccine.completedDoses = 1;
       userVaccine.lastDoseDate = new Date().toISOString().split('T')[0];
-      
-      const vaccine = userVaccine.Vaccine;
-      const totalPrimaryDoses = vaccine.numberOfDoses || 1;
+      await userVaccine.save();
 
-      // 1. Check if more PRIMARY doses are pending
-      if (userVaccine.completedDoses < totalPrimaryDoses) {
-        userVaccine.status = 'pending';
-        
-        const intervalDays = vaccine.doseIntervalsDays[userVaccine.completedDoses - 1];
-
-        // Calculate next due date based on today's date
-        const today = new Date();
-        const nextDueDate = new Date(today);
-        nextDueDate.setDate(today.getDate() + intervalDays);
-
-        // Assign the calculated date
-        userVaccine.nextDueDate = nextDueDate;
-
-      
-      // 2. Check for a RECURRING booster
-      } else if (vaccine.isRecurringBooster && vaccine.boosterIntervalYears > 0) {
-        userVaccine.status = 'pending';
-        const nextDueDate = new Date();
-        nextDueDate.setFullYear(nextDueDate.getFullYear() + vaccine.boosterIntervalYears);
-        userVaccine.nextDueDate = nextDueDate.toISOString().split('T')[0];
-
-
-      // 3. All doses are complete, NO recurring booster
-      } else {
-        userVaccine.status = 'completed';
-        userVaccine.nextDueDate = null;
+      // If brands exist, stop and ask the user to select one
+      if (availableBrands && availableBrands.length > 0) {
+        return res.status(200).json({
+          message: 'First dose recorded. Please select the brand to continue.',
+          action: 'SELECT_BRAND', // Signal to client app
+          brands: availableBrands,
+          updatedVaccine: userVaccine
+        });
       }
+      
+      // If NO brands exist (e.g., BCG), proceed to schedule next dose
+      // We fall through to the logic below...
+    }
+    // --- END BRAND SELECTION LOGIC ---
+
+    // --- STANDARD DOSE SCHEDULING LOGIC ---
+    // This logic now runs for:
+    // 1. Generic vaccines with no brands (like BCG)
+    // 2. All doses *after* a brand has been selected (e.g., dose 2, 3)
+
+    // Increment dose if it wasn't the first dose of a generic (handled above)
+    if (userVaccine.Vaccine.brandName !== null) {
+        userVaccine.completedDoses += 1;
+        userVaccine.lastDoseDate = new Date().toISOString().split('T')[0];
+    }
+    
+    const vaccine = userVaccine.Vaccine; // Use the (potentially new) brand vaccine
+    const totalPrimaryDoses = vaccine.numberOfDoses || 1;
+
+    // 1. Check if more PRIMARY doses are pending
+    if (userVaccine.completedDoses < totalPrimaryDoses) {
+      userVaccine.status = 'pending';
+      const intervalDays = vaccine.doseIntervalsDays[userVaccine.completedDoses - 1];
+      userVaccine.nextDueDate = addDaysToDateOnly(userVaccine.lastDoseDate, intervalDays);
+
+    // 2. Check for a RECURRING booster
+    } else if (vaccine.isRecurringBooster && vaccine.boosterIntervalYears > 0) {
+      userVaccine.status = 'pending';
+      const nextDueDate = new Date(userVaccine.lastDoseDate);
+      nextDueDate.setFullYear(nextDueDate.getFullYear() + vaccine.boosterIntervalYears);
+      userVaccine.nextDueDate = nextDueDate.toISOString().split('T')[0];
+
+    // 3. All doses are complete, NO recurring booster
+    } else {
+      userVaccine.status = 'completed';
+      userVaccine.nextDueDate = null;
     }
 
     await userVaccine.save();
@@ -154,17 +189,22 @@ export const updateVaccinationStatus = async (req, res) => {
   }
 };
 
-export const markVaccineAsTaken = async (req, res) => {
+/**
+ * NEW ENDPOINT
+ * This is called *after* updateVaccinationStatus returns 'SELECT_BRAND'.
+ * It links the UserVaccine record to the specific brand and schedules the next dose.
+ */
+export const selectVaccineBrand = async (req, res) => {
   try {
     const { userVaccineId } = req.params;
-    const { dosesCompleted, dateTaken } = req.body;
+    const { brandId } = req.body;
     const userId = req.user.id;
 
-    // Validation
-    if (!dosesCompleted || !dateTaken) {
-      return res.status(400).json({ message: 'dosesCompleted and dateTaken are required' });
+    if (!brandId) {
+      return res.status(400).json({ message: 'brandId is required' });
     }
 
+    // 1. Find the UserVaccine record (which is still generic)
     const userVaccine = await UserVaccine.findOne({
       where: { id: userVaccineId, userId: userId },
       include: [{ model: Vaccine }]
@@ -173,65 +213,228 @@ export const markVaccineAsTaken = async (req, res) => {
     if (!userVaccine) {
       return res.status(404).json({ message: 'Vaccine record not found' });
     }
-
-    const vaccine = userVaccine.Vaccine;
-    const totalDoses = vaccine.numberOfDoses || 1;
-
-    // Validate doses completed
-    if (dosesCompleted > totalDoses) {
-      return res.status(400).json({ 
-        message: `Cannot mark ${dosesCompleted} doses as completed. This vaccine only has ${totalDoses} doses.` 
-      });
+    if (userVaccine.completedDoses !== 1 || userVaccine.Vaccine.brandName !== null) {
+      return res.status(400).json({ message: 'Brand can only be selected after first dose of a generic vaccine' });
     }
 
-    // Update the record
-    userVaccine.completedDoses = dosesCompleted;
-    userVaccine.lastDoseDate = dateTaken;
+    // 2. Find the selected Brand Vaccine
+    const brandVaccine = await Vaccine.findByPk(brandId);
+    if (!brandVaccine) {
+      return res.status(404).json({ message: 'Brand not found' });
+    }
+    
+    // 3. Validate that the brand matches the generic vaccine
+    if (userVaccine.Vaccine.name !== brandVaccine.name) {
+      return res.status(400).json({ message: 'Brand name mismatch.' });
+    }
 
-    // Determine next status
-    if (dosesCompleted < totalDoses) {
+    // 4. ✅ Update the UserVaccine to point to the new brand
+    userVaccine.vaccineId = brandId;
+
+    // 5. Now, schedule the *next* dose based on this brand's rules
+    const totalPrimaryDoses = brandVaccine.numberOfDoses || 1;
+
+    if (userVaccine.completedDoses < totalPrimaryDoses) {
       // More primary doses needed
       userVaccine.status = 'pending';
-      
-      // Calculate next due date based on the last completed dose
-      const intervalDays = vaccine.doseIntervalsDays[dosesCompleted - 1];
-      const nextDueDate = addDaysToDateOnly(dateTaken, intervalDays);
-      userVaccine.nextDueDate = nextDueDate;
-      
-    } else if (vaccine.isRecurringBooster && vaccine.boosterIntervalYears > 0) {
-      // All primary doses done, but booster needed
+      const intervalDays = brandVaccine.doseIntervalsDays[userVaccine.completedDoses - 1]; // e.g., interval after dose 1
+      userVaccine.nextDueDate = addDaysToDateOnly(userVaccine.lastDoseDate, intervalDays);
+
+    } else if (brandVaccine.isRecurringBooster && brandVaccine.boosterIntervalYears > 0) {
+      // Brand is 1 dose + booster
       userVaccine.status = 'pending';
-      const [year, month, day] = dateTaken.split('-').map(Number);
-      const nextYear = year + vaccine.boosterIntervalYears;
-      userVaccine.nextDueDate = `${nextYear}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      const nextDueDate = new Date(userVaccine.lastDoseDate);
+      nextDueDate.setFullYear(nextDueDate.getFullYear() + brandVaccine.boosterIntervalYears);
+      userVaccine.nextDueDate = nextDueDate.toISOString().split('T')[0];
       
     } else {
-      // Fully complete
+      // Brand is fully complete after 1 dose
       userVaccine.status = 'completed';
       userVaccine.nextDueDate = null;
     }
 
     await userVaccine.save();
-
+    
     const updatedVaccine = await UserVaccine.findOne({
       where: { id: userVaccineId },
       include: [{ model: Vaccine }]
     });
 
-    return res.status(200).json({
-      message: 'Vaccine marked as taken successfully',
+    res.status(200).json({
+      message: 'Brand selected and next dose scheduled',
       updatedVaccine
     });
 
   } catch (error) {
-    console.error('Error marking vaccine as taken:', error);
-    return res.status(500).json({
-      message: 'Failed to mark vaccine as taken',
-      error: error.message
+    console.error('Error selecting vaccine brand:', error);
+    res.status(500).json({
+      message: 'Failed to select brand',
+      error: error.message,
     });
   }
 };
 
+/**
+ * ✅ FIXED ENDPOINT
+ * This now correctly finds the UserVaccine, then its generic Vaccine,
+ * then all brands associated with that generic name.
+ */
+export const getVaccineBrands = async (req, res) => {
+  try {
+    // ✅ Parameter is now userVaccineId
+    const { userVaccineId } = req.params;
+    const userId = req.user.id;
+
+    const userVaccine = await UserVaccine.findOne({
+      where: { id: userVaccineId, userId: userId },
+      include: [{ model: Vaccine, attributes: ['name'] }]
+    });
+
+    if (!userVaccine) {
+      return res.status(404).json({ message: "Vaccine record not found" });
+    }
+
+    // Find all brands matching the generic vaccine's name
+    const brands = await Vaccine.findAll({
+      where: {
+        name: userVaccine.Vaccine.name,
+        brandName: { [Op.not]: null }
+      },
+      // ✅ Return all fields, esp. id, brandName, and numberOfDoses
+    });
+
+    res.json({ brands: brands || [] });
+  } catch (error) {
+    console.error("Error fetching vaccine brands:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * ✅ UPDATED ENDPOINT
+ * Handles catch-up logging, including brand selection and
+ * a new 'markAllAsCompleted' flag.
+ */
+export const markVaccineAsTaken = async (req, res) => {
+  try {
+    const { userVaccineId } = req.params;
+    const { dosesCompleted, dateTaken, brandId, markAllAsCompleted } = req.body;
+    const userId = req.user.id;
+
+    if (!dateTaken) {
+      return res.status(400).json({ message: 'dateTaken is required' });
+    }
+    if (!markAllAsCompleted && !dosesCompleted) {
+      return res
+        .status(400)
+        .json({ message: 'dosesCompleted is required if not marking all as taken' });
+    }
+
+    let userVaccine = await UserVaccine.findOne({
+      where: { id: userVaccineId, userId: userId },
+      include: [{ model: Vaccine }],
+    });
+
+    if (!userVaccine) {
+      return res.status(404).json({ message: 'Vaccine record not found' });
+    }
+
+    let vaccine = userVaccine.Vaccine;
+
+    // --- BRAND SELECTION LOGIC for CATCH-UP ---
+    // This logic is already correct
+    if (vaccine.brandName === null) {
+      const availableBrands = await Vaccine.findAll({
+        where: { name: vaccine.name, brandName: { [Op.not]: null } },
+      });
+
+      if (availableBrands.length > 0) {
+        if (!brandId) {
+          return res.status(400).json({
+            message: 'A brandId is required to log this vaccine.',
+            action: 'SELECT_BRAND',
+            brands: availableBrands,
+          });
+        }
+
+        const newBrand = await Vaccine.findByPk(brandId);
+        if (!newBrand || newBrand.name !== vaccine.name) {
+          return res.status(400).json({ message: 'Invalid brandId provided.' });
+        }
+
+        userVaccine.brandTakenId = brandId;
+        vaccine = newBrand; // Use the new brand for all calculations
+      }
+    }
+    // --- END CATCH-UP BRAND LOGIC ---
+
+    const totalDoses = vaccine.numberOfDoses || 1;
+    let finalDosesCompleted;
+
+    // This part is correct:
+    if (markAllAsCompleted === true) {
+      finalDosesCompleted = totalDoses;
+    } else {
+      finalDosesCompleted = parseInt(dosesCompleted, 10);
+      if (finalDosesCompleted > totalDoses) {
+        return res.status(400).json({
+          message: `Cannot mark ${finalDosesCompleted} doses. This brand only has ${totalDoses} doses.`,
+        });
+      }
+    }
+
+    userVaccine.completedDoses = finalDosesCompleted;
+    userVaccine.lastDoseDate = dateTaken;
+    userVaccine.totalDoses = totalDoses;
+
+    // --- ✅ CORRECTED Rescheduling Logic ---
+    // We have REMOVED the 'if (markAllAsCompleted === true)' override.
+    // This logic now runs correctly for all cases.
+
+    if (finalDosesCompleted < totalDoses) {
+      // Still pending doses (e.g., user logged 1 of 3)
+      userVaccine.status = 'pending';
+      const intervalDays = vaccine.doseIntervalsDays[finalDosesCompleted - 1];
+      userVaccine.nextDueDate = addDaysToDateOnly(dateTaken, intervalDays);
+
+    } else if (vaccine.isRecurringBooster && vaccine.boosterIntervalYears > 0) {
+      // ✅ This is the logic you wanted!
+      // Primary series is complete, AND this vaccine needs a booster.
+      userVaccine.status = 'pending'; // Set to pending for the booster
+      const nextDueDate = new Date(dateTaken);
+      nextDueDate.setFullYear(
+        nextDueDate.getFullYear() + vaccine.boosterIntervalYears
+      );
+      userVaccine.nextDueDate = nextDueDate.toISOString().split('T')[0];
+
+    } else {
+      // Primary series is complete, and NO booster is needed.
+      userVaccine.status = 'completed';
+      userVaccine.nextDueDate = null;
+    }
+    // --- END CORRECTED Logic ---
+
+    await userVaccine.save();
+
+    const updatedVaccine = await UserVaccine.findOne({
+      where: { id: userVaccineId },
+      include: [{ model: Vaccine }],
+    });
+
+    return res.status(200).json({
+      message: 'Vaccine marked as taken successfully',
+      updatedVaccine,
+    });
+  } catch (error) {
+    console.error('Error marking vaccine as taken:', error);
+    return res.status(500).json({
+      message: 'Failed to mark vaccine as taken',
+      error: error.message,
+    });
+  }
+};
+
+// This endpoint does not need to change
 export const scheduleVaccine = async (req, res) => {
   try {
     const { userVaccineId } = req.params;
@@ -266,12 +469,17 @@ export const scheduleVaccine = async (req, res) => {
   }
 };
 
+// This endpoint does not need to change
 export const getTravelVaccines = async (req, res) => {
   try {
     const { destination } = req.query; // e.g., ?destination=Africa
 
     const vaccines = await Vaccine.findAll({
-      where: { isTravelVaccine: true }
+      where: { 
+        isTravelVaccine: true,
+        // Only show generic travel vaccines in the list
+        brandName: null 
+      }
     });
 
     const filtered = destination

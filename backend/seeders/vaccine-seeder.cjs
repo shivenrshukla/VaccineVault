@@ -2,11 +2,11 @@
 const { Op } = require('sequelize');
 
 const moToDays = (months) => Math.round(parseFloat(months) * 30.44);
-
 const allVaccines = [
-  // --- UIP Vaccines ---
+  // --- GENERIC UIP Vaccines (for initial recommendation) ---
   {
     name: 'BCG (Bacillus Calmette-Guérin)',
+    brandName: null,
     diseaseProtectedAgainst: 'Tuberculosis (severe forms)',
     ageOfFirstDoseMonths: 0,
     numberOfDoses: 1,
@@ -15,99 +15,159 @@ const allVaccines = [
     boosterIntervalYears: null,
     isUIP: true,
     isTravelVaccine: false,
-    travelRegions: null,
-    mandatoryFor: null,
-    travelNotes: null
   },
   {
-    name: 'Hepatitis B Vaccine (Birth Dose)',
+    name: 'Hepatitis B Vaccine',
+    brandName: null, // GENERIC
     diseaseProtectedAgainst: 'Hepatitis B',
     ageOfFirstDoseMonths: 0,
-    numberOfDoses: 3,
-    doseIntervalsDays: JSON.stringify([moToDays(1.5), moToDays(4.5)]),
-    isRecurringBooster: false,
-    boosterIntervalYears: null,
+    numberOfDoses: 1, // Placeholder for "take 1st dose"
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
     isUIP: true,
-    isTravelVaccine: false,
-    travelRegions: ["Global", "Unsafe food/water areas"],
-    mandatoryFor: null,
-    travelNotes: "Recommended for travelers visiting areas with poor sanitation."
+    isTravelVaccine: true,
   },
   {
     name: 'Oral Polio Vaccine (OPV)',
+    brandName: null, // GENERIC
     diseaseProtectedAgainst: 'Poliomyelitis',
     ageOfFirstDoseMonths: 0,
-    numberOfDoses: 4,
-    doseIntervalsDays: JSON.stringify([moToDays(1.5), moToDays(1), moToDays(1)]),
-    isRecurringBooster: false,
-    boosterIntervalYears: null,
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
     isUIP: true,
     isTravelVaccine: false,
-    travelRegions: null,
-    mandatoryFor: null,
-    travelNotes: null
   },
   {
     name: 'Pentavalent Vaccine (DTP-HepB-Hib)',
+    brandName: null, // GENERIC
     diseaseProtectedAgainst: 'Diphtheria, Tetanus, Pertussis, Hepatitis B, Hib',
     ageOfFirstDoseMonths: 2,
-    numberOfDoses: 3,
-    doseIntervalsDays: JSON.stringify([moToDays(1), moToDays(1)]),
-    isRecurringBooster: false,
-    boosterIntervalYears: null,
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
     isUIP: true,
     isTravelVaccine: false,
-    travelRegions: null,
-    mandatoryFor: null,
-    travelNotes: null
   },
   {
     name: 'Rotavirus Vaccine',
+    brandName: null, // GENERIC
     diseaseProtectedAgainst: 'Rotavirus Gastroenteritis',
     ageOfFirstDoseMonths: 2,
-    numberOfDoses: 3,
-    doseIntervalsDays: JSON.stringify([moToDays(1), moToDays(1)]),
-    isRecurringBooster: false,
-    boosterIntervalYears: null,
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
     isUIP: true,
     isTravelVaccine: false,
-    travelRegions: null,
-    mandatoryFor: null,
-    travelNotes: null
   },
   {
     name: 'Pneumococcal Conjugate Vaccine (PCV)',
+    brandName: null, // GENERIC
     diseaseProtectedAgainst: 'Pneumococcal diseases',
     ageOfFirstDoseMonths: 2,
-    numberOfDoses: 3,
-    doseIntervalsDays: JSON.stringify([moToDays(2), moToDays(5.5)]),
-    isRecurringBooster: false,
-    boosterIntervalYears: null,
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
     isUIP: true,
     isTravelVaccine: false,
-    travelRegions: null,
-    mandatoryFor: null,
-    travelNotes: null
   },
   {
     name: 'MMR (Measles, Mumps, Rubella)',
+    brandName: null, // GENERIC
     diseaseProtectedAgainst: 'Measles, Mumps, Rubella',
     ageOfFirstDoseMonths: 9,
-    numberOfDoses: 2,
-    doseIntervalsDays: JSON.stringify([moToDays(7)]),
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
+    isUIP: true,
+    isTravelVaccine: false,
+  },
+
+  // --- SPECIFIC BRANDS (for scheduling after dose 1) ---
+  {
+    name: 'Hepatitis B Vaccine',
+    brandName: 'UIP-Default',
+   diseaseProtectedAgainst: 'Hepatitis B',
+    ageOfFirstDoseMonths: 0,
+    numberOfDoses: 3,
+    doseIntervalsDays: JSON.stringify([moToDays(1.5), moToDays(4.5)]), // Birth, 6 weeks, 6 months
+    isRecurringBooster: false,
+    boosterIntervalYears: null,
+    isUIP: true,
+    isTravelVaccine: true,
+  },
+  {
+    name: 'Pentavalent Vaccine (DTP-HepB-Hib)',
+    brandName: 'Pentavac (UIP)', 
+   diseaseProtectedAgainst: 'Diphtheria, Tetanus, Pertussis, Hepatitis B, Hib',
+    ageOfFirstDoseMonths: 2,
+    numberOfDoses: 3,
+  doseIntervalsDays: JSON.stringify([moToDays(1), moToDays(1)]), // 2, 3, 4 months
     isRecurringBooster: false,
     boosterIntervalYears: null,
     isUIP: true,
     isTravelVaccine: false,
-    travelRegions: null,
-    mandatoryFor: null,
-    travelNotes: null
   },
-
-  // --- Travel / Optional Vaccines ---
+  {
+    name: 'Rotavirus Vaccine',
+    brandName: 'Rotavac (UIP)',
+    diseaseProtectedAgainst: 'Rotavirus Gastroenteritis',
+    ageOfFirstDoseMonths: 2,
+    numberOfDoses: 3, // 3 doses
+    doseIntervalsDays: JSON.stringify([moToDays(1), moToDays(1)]), // 2, 3, 4 months
+    isRecurringBooster: false,
+    boosterIntervalYears: null,
+    isUIP: true,
+    isTravelVaccine: false,
+},
+  {
+    name: 'Rotavirus Vaccine',
+    brandName: 'Rotarix',
+    diseaseProtectedAgainst: 'Rotavirus Gastroenteritis',
+    ageOfFirstDoseMonths: 2,
+    numberOfDoses: 2, // 2 doses
+    doseIntervalsDays: JSON.stringify([moToDays(2)]), // 2, 4 months
+    isRecurringBooster: false,
+    boosterIntervalYears: null,
+    isUIP: false,
+    isTravelVaccine: false,
+  },
+  {
+    name: 'MMR (Measles, Mumps, Rubella)',
+    brandName: 'Tresivac (UIP)',
+    diseaseProtectedAgainst: 'Measles, Mumps, Rubella',
+    ageOfFirstDoseMonths: 9,
+   numberOfDoses: 2,
+    doseIntervalsDays: JSON.stringify([moToDays(7)]), // 9 months, 16-24 months
+    isRecurringBooster: false,
+    boosterIntervalYears: null,
+    isUIP: true,
+    isTravelVaccine: false,
+  },
+  
+  // --- GENERIC Travel/Optional (for recommendation) ---
+  {
+    name: 'COVID-19 Vaccine',
+    brandName: null,
+    diseaseProtectedAgainst: 'COVID-19',
+    ageOfFirstDoseMonths: 18 * 12,
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
+    isUIP: false,
+    isTravelVaccine: false,
+  },
   {
     name: 'Yellow Fever Vaccine',
-    diseaseProtectedAgainst: 'Yellow Fever',
+    brandName: null,
+   diseaseProtectedAgainst: 'Yellow Fever',
     ageOfFirstDoseMonths: 9,
     numberOfDoses: 1,
     doseIntervalsDays: null,
@@ -115,12 +175,10 @@ const allVaccines = [
     boosterIntervalYears: 10,
     isUIP: false,
     isTravelVaccine: true,
-    travelRegions: ["Africa", "South America"],
-    mandatoryFor: ["Some African and South American countries"],
-    travelNotes: "Certificate required for entry; only given at authorized centers in India."
   },
   {
     name: 'Typhoid Conjugate Vaccine (TCV)',
+    brandName: null,
     diseaseProtectedAgainst: 'Typhoid Fever',
     ageOfFirstDoseMonths: 6,
     numberOfDoses: 1,
@@ -129,75 +187,142 @@ const allVaccines = [
     boosterIntervalYears: 3,
     isUIP: false,
     isTravelVaccine: true,
-    travelRegions: ["Asia", "Africa"],
-    mandatoryFor: null,
-    travelNotes: "Recommended for areas with poor sanitation."
   },
+  // ... (Keep other travel vaccines, add brands if they exist)
   {
     name: 'Meningococcal Vaccine',
+    brandName: null, // GENERIC
+ageOfFirstDoseMonths: 2,
     diseaseProtectedAgainst: 'Meningococcal Meningitis',
-    ageOfFirstDoseMonths: 2,
-    numberOfDoses: 1,
+    numberOfDoses: 1, 
     doseIntervalsDays: null,
     isRecurringBooster: true,
     boosterIntervalYears: 5,
     isUIP: false,
     isTravelVaccine: true,
-    travelRegions: ["Saudi Arabia", "US", "UK"],
-    mandatoryFor: ["Hajj pilgrims", "Some students abroad"],
-    travelNotes: "Mandatory for Hajj pilgrims; recommended for students in some countries."
   },
   {
     name: 'Rabies Vaccine (Pre-exposure)',
+    brandName: null, // GENERIC
+    diseaseProtectedAgainst: 'Rabies',
+    ageOfFirstDoseMonths: 0,
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
+    isUIP: false,
+    isTravelVaccine: true,
+  },
+  {
+    name: 'Japanese Encephalitis Vaccine',
+    brandName: null, // GENERIC
+ageOfFirstDoseMonths: 9,
+    diseaseProtectedAgainst: 'Japanese Encephalitis',
+    numberOfDoses: 1, // Placeholder
+    doseIntervalsDays: null,
+    isRecurringBooster: false, // <-- FIX
+    boosterIntervalYears: null, // <-- FIX
+    isUIP: false,
+    isTravelVaccine: true,
+  },
+
+  // --- SPECIFIC BRANDS for Travel/Optional ---
+  {
+    name: 'COVID-19 Vaccine',
+    brandName: 'Covishield',
+    diseaseProtectedAgainst: 'COVID-19',
+    ageOfFirstDoseMonths: 18 * 12,
+    numberOfDoses: 2,
+    doseIntervalsDays: JSON.stringify([84]), // 84 days
+    isRecurringBooster: true,
+    boosterIntervalYears: 1,
+    isUIP: false,
+    isTravelVaccine: false,
+  },
+    {
+    name: 'COVID-19 Vaccine',
+    brandName: 'Covaxin',
+    diseaseProtectedAgainst: 'COVID-19',
+    ageOfFirstDoseMonths: 18 * 12,
+    numberOfDoses: 2,
+    doseIntervalsDays: JSON.stringify([28]), // 28 days
+    isRecurringBooster: true,
+    boosterIntervalYears: 1,
+    isUIP: false,
+    isTravelVaccine: false,
+  },
+  {
+    name: 'Meningococcal Vaccine',
+    brandName: 'Menactra', // Example brand
+    ageOfFirstDoseMonths: 2,
+    diseaseProtectedAgainst: 'Meningococcal Meningitis',
+    numberOfDoses: 1, // Note: This varies by age, 1 dose is for 2yrs+
+    doseIntervalsDays: null,
+    isRecurringBooster: true,
+    boosterIntervalYears: 5,
+    isUIP: false,
+    isTravelVaccine: true,
+  },
+  {
+    name: 'Rabies Vaccine (Pre-exposure)',
+    brandName: 'Default Schedule',
     diseaseProtectedAgainst: 'Rabies',
     ageOfFirstDoseMonths: 0,
     numberOfDoses: 3,
-    doseIntervalsDays: JSON.stringify([7, 14]),
+    doseIntervalsDays: JSON.stringify([7, 14]), // Day 0, 7, 21 or 28
     isRecurringBooster: true,
     boosterIntervalYears: 3,
     isUIP: false,
     isTravelVaccine: true,
-    travelRegions: ["High-risk rural areas"],
-    mandatoryFor: null,
-    travelNotes: "Recommended for travelers in high-risk areas."
   },
   {
     name: 'Japanese Encephalitis Vaccine',
-    diseaseProtectedAgainst: 'Japanese Encephalitis',
+    brandName: 'JENVAC', // Example brand
     ageOfFirstDoseMonths: 9,
+    diseaseProtectedAgainst: 'Japanese Encephalitis',
     numberOfDoses: 2,
     doseIntervalsDays: JSON.stringify([moToDays(1)]),
     isRecurringBooster: false,
     boosterIntervalYears: null,
     isUIP: false,
     isTravelVaccine: true,
-    travelRegions: ["Rural Asia"],
-    mandatoryFor: null,
-    travelNotes: "Recommended for long stays in rural Asia."
   },
 ];
 
+// ... (The 'up' and 'down' functions are correct from the previous step)
+// 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
+    // Find existing vaccines based on both name and brandName
     const existingVaccines = await queryInterface.sequelize.query(
-      `SELECT name FROM "Vaccines" WHERE name IN (:names)`,
+      `SELECT name, "brandName" FROM "Vaccines" WHERE name IN (:names)`,
       {
-        replacements: { names: allVaccines.map(v => v.name) },
+        replacements: 
+{ names: allVaccines.map(v => v.name) },
         type: Sequelize.QueryTypes.SELECT,
       }
     );
-    const existingNames = existingVaccines.map(v => v.name);
 
-    const newVaccines = allVaccines.filter(v => !existingNames.includes(v.name));
+    // Filter out vaccines that already exist
+    const newVaccines = allVaccines.filter(v_new => {
+      // Find if an old vaccine matches the new one's composite key
+      return !existingVaccines.some(v_old => 
+        v_old.name === v_new.name && v_old.brandName === (v_new.brandName || null)
+      );
+    });
 
-    if (newVaccines.length > 0) {
+if (newVaccines.length > 0) {
       await queryInterface.bulkInsert('Vaccines', newVaccines, {});
-    }
+}
   },
 
   down: async (queryInterface, Sequelize) => {
+    // Delete all vaccines that match the composite key (name + brandName) from our list
     await queryInterface.bulkDelete('Vaccines', {
-      name: { [Op.in]: allVaccines.map(v => v.name) }
+      [Op.or]: allVaccines.map(v => ({
+        name: v.name,
+        brandName: v.brandName || null
+      }))
     }, {});
-  }
+}
 };

@@ -61,8 +61,9 @@ class _MyCertificatesScreenState extends State<MyCertificatesScreen> {
         withData: kIsWeb, // --- KEY CHANGE: Tell picker to get bytes on web
       );
 
-      if (result == null || result.files.single == null)
+      if (result == null) {
         return; // User canceled
+      }
 
       // --- PLATFORM-AWARE LOGIC ---
       String fileName = result.files.single.name;

@@ -11,14 +11,17 @@ const Vaccine = sequelize.define('Vaccine', {
     name: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true
+        comment: 'The common name of the vaccine (e.g., Rotavirus Vaccine)'
+    },
+    brandName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'Brand name, if applicable (e.g., Covishield, Rotarix)'
     },
     diseaseProtectedAgainst: {
         type: DataTypes.STRING,
         allowNull: false
     },
-    
-    // --- FINALIZED SCHEMA ---
     ageOfFirstDoseMonths: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -31,7 +34,7 @@ const Vaccine = sequelize.define('Vaccine', {
         comment: 'Total number of doses in the primary series (e.g., 3 for Hep B, 1 for Flu).'
     },
     doseIntervalsDays: {
-        type: DataTypes.JSON, // Store as an array: [45, 135]
+        type: DataTypes.JSON,
         allowNull: true,
         comment: 'Array of days *between* doses. [0] is gap b/w Dose 1 & 2.'
     },
@@ -58,23 +61,29 @@ const Vaccine = sequelize.define('Vaccine', {
         comment: "True if this vaccine is recommended for travel (e.g., Yellow Fever, Typhoid)"
     },
     travelRegions: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    allowNull: true,
-    comment: "Regions or countries where this vaccine is recommended (e.g., ['Africa', 'South America'])"
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        allowNull: true,
+        comment: "Regions or countries where this vaccine is recommended (e.g., ['Africa', 'South America'])"
     },
     mandatoryFor: {
-    type: DataTypes.ARRAY(DataTypes.STRING),
-    allowNull: true,
-    comment: "Countries/events where this vaccine is mandatory (e.g., ['Hajj (Saudi Arabia)'])"
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        allowNull: true,
+        comment: "Countries/events where this vaccine is mandatory (e.g., ['Hajj (Saudi Arabia)'])"
     },
     travelNotes: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: "Additional information or certification requirements for travelers"
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: "Additional information or certification requirements for travelers"
     }
     
 }, {
-    timestamps: false
+    timestamps: false,
+    indexes: [
+        {
+            unique: true,
+            fields: ['name', 'brandName']
+        }
+    ]
 });
 
 export default Vaccine;

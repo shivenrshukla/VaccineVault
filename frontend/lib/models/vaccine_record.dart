@@ -41,6 +41,7 @@ class CertificateStub {
 class VaccineRecord {
   final int id;
   final String name;
+  final String? brandName;
   final String? diseaseProtectedAgainst;
   final String status;
   final String? nextDueDate;
@@ -52,6 +53,7 @@ class VaccineRecord {
   VaccineRecord({
     required this.id,
     required this.name,
+    this.brandName,
     this.diseaseProtectedAgainst,
     required this.status,
     this.nextDueDate,
@@ -107,7 +109,18 @@ class VaccineRecord {
       if (totalDoses != null) {
         return 'Dose $completedDoses of $totalDoses - Taken';
       } else {
-        return 'Dose $completedDoses - Taken';
+        if (totalDoses != null && completedDoses >= totalDoses!) {
+        return 'Booster Dose';
+      }
+      // --- END NEW BOOSTER LOGIC ---
+
+      // --- Original Pending Logic (for primary series) ---
+      final nextDose = completedDoses + 1;
+      if (totalDoses != null) {
+        return 'Dose $nextDose of $totalDoses'; // e.g., "Dose 1 of 2"
+      } else {
+        return 'Dose $nextDose'; // e.g., "Dose 1"
+      }
       }
     }
 
@@ -130,10 +143,19 @@ class VaccineRecord {
 
   factory VaccineRecord.fromJson(Map<String, dynamic> json) {
     final vaccineInfo = json['Vaccine'] as Map<String, dynamic>?;
+    final brandInfo = json['BrandTaken'] as Map<String, dynamic>?;
 
-    int? totalDoses;
-    if (vaccineInfo != null && vaccineInfo['numberOfDoses'] != null) {
-      totalDoses = vaccineInfo['numberOfDoses'] as int?;
+    // The "name" is ALWAYS the disease name from the generic record
+    final String name = vaccineInfo?['name'] ?? 'Unknown Vaccine';
+
+    // The "brandName" is for display, if it exists
+    final String? brandName = brandInfo?['brandName'];
+
+    // Get totalDoses from UserVaccine level first
+    int? totalDoses = json['totalDoses'] as int?;
+    if (totalDoses == null) {
+      // Fallback to brand or generic
+      totalDoses = brandInfo?['numberOfDoses'] ?? vaccineInfo?['numberOfDoses'];
     }
 
     // ✅ FIX 2: Add the logic to parse the certificates list
@@ -143,7 +165,8 @@ class VaccineRecord {
 
     return VaccineRecord(
       id: json['id'] as int,
-      name: vaccineInfo?['name'] as String? ?? 'Unknown Vaccine',
+      name: name,
+      brandName: brandName,
       diseaseProtectedAgainst:
           vaccineInfo?['diseaseProtectedAgainst'] as String?,
       status: json['status'] as String,
