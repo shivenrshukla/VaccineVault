@@ -7,7 +7,9 @@ import 'knowledge_base_screen.dart';
 import 'vaccine_centres_screen.dart';
 import 'profile_page.dart';
 import 'travel_vaccines_screen.dart';
-import 'my_certificates_screen.dart'; // ✅ NEW IMPORT
+import 'my_certificates_screen.dart';
+// ✅ IMPORT OUR NEW SCREEN
+import 'vaccine_vigilance_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,6 +18,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        // ... (your existing gradient decoration)
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -32,7 +35,7 @@ class HomeScreen extends StatelessWidget {
         child: SafeArea(
           child: Column(
             children: [
-              // Top Header Section
+              // ... (your existing header section)
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24.0,
@@ -74,6 +77,7 @@ class HomeScreen extends StatelessWidget {
                   child: ListView(
                     physics: const BouncingScrollPhysics(),
                     children: [
+                      // ... (Vaccine Schedule card)
                       _buildInfoCard(
                         context: context,
                         title: 'Vaccine Schedule',
@@ -89,6 +93,7 @@ class HomeScreen extends StatelessWidget {
                           );
                         },
                       ),
+                      // ... (Vaccine Records card)
                       _buildInfoCard(
                         context: context,
                         title: 'Vaccine Records',
@@ -104,8 +109,7 @@ class HomeScreen extends StatelessWidget {
                           );
                         },
                       ),
-
-                      // ✅ NEW CARD ADDED
+                      // ... (My Certificates card)
                       _buildInfoCard(
                         context: context,
                         title: 'My Certificates',
@@ -122,11 +126,30 @@ class HomeScreen extends StatelessWidget {
                         },
                       ),
 
+                      // ✅ UPDATED CARD
+                      _buildInfoCard(
+                        context: context,
+                        title: 'Report an Adverse Event', // Renamed
+                        icon: Icons.health_and_safety_outlined,
+                        color: const Color(0xFF4A5568),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              // Navigate to the user screen
+                              builder: (context) =>
+                                  const VaccineVigilanceScreen(),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // ... (Knowledge Base card)
                       _buildInfoCard(
                         context: context,
                         title: 'Knowledge Base',
                         icon: Icons.info,
-                        color: const Color(0xFFB794F6), // Changed color
+                        color: const Color(0xFFB794F6),
                         onTap: () {
                           Navigator.push(
                             context,
@@ -136,11 +159,12 @@ class HomeScreen extends StatelessWidget {
                           );
                         },
                       ),
+                      // ... (Travel Vaccines card)
                       _buildInfoCard(
                         context: context,
                         title: 'Travel Vaccines',
                         icon: Icons.flight_takeoff,
-                        color: const Color(0xFFD6BCFA), // Changed color
+                        color: const Color(0xFFD6BCFA),
                         onTap: () {
                           Navigator.push(
                             context,
@@ -151,6 +175,7 @@ class HomeScreen extends StatelessWidget {
                           );
                         },
                       ),
+                      // ... (Vaccine Centres card)
                       _buildInfoCard(
                         context: context,
                         title: 'Vaccine Centres near me',
@@ -177,6 +202,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // ... (your existing _buildInfoCard widget)
   Widget _buildInfoCard({
     required BuildContext context,
     required String title,

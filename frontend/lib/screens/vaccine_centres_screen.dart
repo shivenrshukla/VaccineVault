@@ -1,7 +1,9 @@
+// lib/screens/vaccine_centres_screen.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../services/auth_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/auth_service.dart'; // Make sure this path is correct
 
 class VaccineCentresScreen extends StatefulWidget {
   const VaccineCentresScreen({super.key});
@@ -13,23 +15,35 @@ class VaccineCentresScreen extends StatefulWidget {
 class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   bool _isLoading = true;
   String? _error;
-  
+
   // User data
   String? _userPinCode;
   String? _userAddress;
   double? _userLat;
   double? _userLng;
-  
+
   // Vaccination centers
   List<VaccinationCenter> _centers = [];
-  
+
   final AuthService _authService = AuthService();
-  static const String apiBaseUrl = 'http://localhost:5000';
+  static const String apiBaseUrl = 'http://localhost:5000'; // Your API URL
 
   @override
   void initState() {
     super.initState();
     _initialize();
+  }
+
+  // Helper function to launch a URL (for phone or email)
+  void _launchUrl(String urlScheme) async {
+    final Uri uri = Uri.parse(urlScheme);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not launch $urlScheme')));
+    }
   }
 
   Future<void> _initialize() async {
@@ -48,7 +62,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
       }
 
       await _fetchUserProfile();
-      
+
       if (_userPinCode != null) {
         await _fetchVaccinationCenters();
       } else {
@@ -67,7 +81,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
 
   Future<void> _fetchUserProfile() async {
     final token = await _authService.getToken();
-    
+
     if (token == null || token.isEmpty) {
       throw Exception('Not authenticated');
     }
@@ -83,22 +97,25 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         setState(() {
           _userPinCode = data['pinCode']?.toString();
-          
+
           // Build complete address for accurate geocoding
           final addressParts = <String>[];
-          if (data['addressPart1'] != null) addressParts.add(data['addressPart1']);
-          if (data['addressPart2'] != null && data['addressPart2'].toString().isNotEmpty) {
+          if (data['addressPart1'] != null)
+            addressParts.add(data['addressPart1']);
+          if (data['addressPart2'] != null &&
+              data['addressPart2'].toString().isNotEmpty) {
             addressParts.add(data['addressPart2']);
           }
           if (data['city'] != null) addressParts.add(data['city']);
           if (data['state'] != null) addressParts.add(data['state']);
-          if (data['pinCode'] != null) addressParts.add(data['pinCode'].toString());
-          
+          if (data['pinCode'] != null)
+            addressParts.add(data['pinCode'].toString());
+
           _userAddress = addressParts.join(', ');
-          
+
           print('✅ User Address: $_userAddress');
         });
       } else if (response.statusCode == 401) {
@@ -117,24 +134,23 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
 
   Future<void> _fetchVaccinationCenters() async {
     final token = await _authService.getToken();
-    
+
     if (token == null) {
       throw Exception('Not authenticated');
     }
 
     try {
       // Build URI with query parameters properly
-      final queryParams = <String, String>{
-        'pinCode': _userPinCode!,
-      };
+      final queryParams = <String, String>{'pinCode': _userPinCode!};
 
       // Add userAddress if available for accurate distance calculation
       if (_userAddress != null && _userAddress!.isNotEmpty) {
         queryParams['userAddress'] = _userAddress!;
       }
 
-      final uri = Uri.parse('$apiBaseUrl/api/find/find-centers')
-          .replace(queryParameters: queryParams);
+      final uri = Uri.parse(
+        '$apiBaseUrl/api/find/find-centers',
+      ).replace(queryParameters: queryParams);
 
       print('🔍 Fetching centers from: $uri');
 
@@ -148,7 +164,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         // Extract search location (pincode-based location)
         final searchLocation = data['searchLocation'];
         if (searchLocation != null) {
@@ -163,21 +179,23 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
           _userLng = (userLocation['lng'] as num?)?.toDouble();
           print('✅ User geocoded location: $_userLat, $_userLng');
         }
-        
+
         setState(() {
           final centersData = data['foundCenters'] as List;
           _centers = centersData
               .map((center) => VaccinationCenter.fromJson(center))
               .toList();
-          
+
           _isLoading = false;
         });
-        
+
         print('✅ Found ${_centers.length} vaccination centers');
-        
+
         // Log distance calculation method used
         if (_centers.isNotEmpty && _centers.first.distanceSource != null) {
-          print('📍 Distance calculated using: ${_centers.first.distanceSource}');
+          print(
+            '📍 Distance calculated using: ${_centers.first.distanceSource}',
+          );
         }
       } else if (response.statusCode == 401) {
         await _authService.logout();
@@ -220,7 +238,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             Row(
               children: [
                 Container(
@@ -250,10 +268,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                       ),
                       Text(
                         'Center #${index + 1}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -261,16 +276,16 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            
+
             _buildInfoRow(Icons.location_on, 'Address', center.address),
             const Divider(height: 24),
             _buildInfoRow(Icons.phone, 'Contact', center.contact),
             const Divider(height: 24),
-            // ✅ Hardcoded distance display
-            _buildInfoRow(Icons.directions, 'Distance', '2 km'),
-            
+            // ✅ Using actual distance
+            _buildInfoRow(Icons.directions, 'Distance', center.distance),
+
             const SizedBox(height: 24),
-            
+
             Row(
               children: [
                 Expanded(
@@ -293,12 +308,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Opening directions...'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                      // You can add logic here to open maps
                     },
                     icon: const Icon(Icons.directions),
                     label: const Text('Directions'),
@@ -341,8 +351,9 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                 ),
               ),
               const SizedBox(height: 4),
+              // ✅ Added a check for 'Not Available'
               Text(
-                value,
+                value.isEmpty ? 'Not Available' : value,
                 style: const TextStyle(
                   fontSize: 15,
                   color: Color(0xFF2D3748),
@@ -352,6 +363,14 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
             ],
           ),
         ),
+        // ✅ Add a call button if the value is a phone number
+        if (label == 'Contact' && value.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.call_outlined, color: Color(0xFF8B5FBF)),
+            onPressed: () {
+              _launchUrl('tel:$value');
+            },
+          ),
       ],
     );
   }
@@ -364,10 +383,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF8B5FBF),
-              Color(0xFFB794F6),
-            ],
+            colors: [Color(0xFF8B5FBF), Color(0xFFB794F6)],
           ),
         ),
         child: SafeArea(
@@ -413,7 +429,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                   ],
                 ),
               ),
-              
+
               // Content
               Expanded(
                 child: Container(
@@ -452,10 +468,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
             SizedBox(height: 16),
             Text(
               'Finding vaccination centers...',
-              style: TextStyle(
-                color: Color(0xFF2D3748),
-                fontSize: 16,
-              ),
+              style: TextStyle(color: Color(0xFF2D3748), fontSize: 16),
             ),
           ],
         ),
@@ -474,10 +487,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.grey[700], fontSize: 16),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
@@ -541,10 +551,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                     const SizedBox(height: 2),
                     Text(
                       _userAddress ?? 'Pin Code: $_userPinCode',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -572,7 +579,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
             ],
           ),
         ),
-        
+
         // Centers list
         Expanded(
           child: _centers.isEmpty
@@ -588,10 +595,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                       SizedBox(height: 16),
                       Text(
                         'No vaccination centers found',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
                       ),
                     ],
                   ),
@@ -618,9 +622,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFF8B5FBF).withOpacity(0.2),
-          ),
+          border: Border.all(color: const Color(0xFF8B5FBF).withOpacity(0.2)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
@@ -652,7 +654,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            
+
             // Details
             Expanded(
               child: Column(
@@ -669,7 +671,11 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey[600],
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -685,13 +691,35 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
+                  // ✅ ADDED CONTACT NUMBER ROW
                   Row(
                     children: [
-                      Icon(Icons.directions_walk, size: 14, color: Colors.grey[600]),
+                      Icon(
+                        Icons.phone_outlined,
+                        size: 14,
+                        color: Colors.grey[600],
+                      ),
                       const SizedBox(width: 4),
-                      // ✅ Hardcoded distance to 2 km
                       Text(
-                        '2 km',
+                        center.contact.isEmpty
+                            ? 'Not Available'
+                            : center.contact,
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.directions_walk,
+                        size: 14,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 4),
+                      // ✅ FIXED: Using actual distance
+                      Text(
+                        center.distance,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -703,11 +731,8 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                 ],
               ),
             ),
-            
-            const Icon(
-              Icons.chevron_right,
-              color: Color(0xFF8B5FBF),
-            ),
+
+            const Icon(Icons.chevron_right, color: Color(0xFF8B5FBF)),
           ],
         ),
       ),
@@ -715,7 +740,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   }
 }
 
-// Model class (simplified since distance is hardcoded)
+// Model class (with distance fix)
 class VaccinationCenter {
   final String name;
   final String address;
@@ -739,10 +764,10 @@ class VaccinationCenter {
     return VaccinationCenter(
       name: json['name'] ?? 'Unknown Center',
       address: json['address'] ?? 'Address not available',
-      contact: json['contact'] ?? 'Not Available',
-      // ✅ Distance is ignored from API, hardcoded to 2 km
-      distance: '2 km',
-      distanceValue: 2.0, // Hardcoded value
+      contact: json['contact'] ?? '', // Return empty string if null
+      // ✅ FIXED: Using 'distance' field from API json
+      distance: json['distance'] ?? 'N/A',
+      distanceValue: (json['distanceValue'] as num?)?.toDouble(),
       distanceSource: json['distanceSource'],
       coordinates: json['coordinates'] != null
           ? {
