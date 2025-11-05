@@ -7,7 +7,7 @@ import '../services/auth_service.dart';
 import '../models/vaccine_record.dart';
 import 'vaccine_certificate_screen.dart';
 
-// ✅ NEW: Minimal model to hold brand data fetched for the dialog
+// Minimal model to hold brand data fetched for the dialog
 class _Brand {
   final int id;
   final String brandName;
@@ -28,9 +28,13 @@ class _Brand {
   }
 }
 
-// ✅ NEW: Add the enum definition here
 enum _DateInputType { specific, range }
-enum _DisplayCategory { pending, completed, booster }
+
+// Added 'situational' category
+enum _DisplayCategory { pending, completed, booster, situational }
+
+// Rabies Exposure Categories
+enum _RabiesCategory { catII, catIII }
 
 class VaccineRecordsScreen extends StatefulWidget {
   const VaccineRecordsScreen({super.key});
@@ -43,7 +47,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   List<VaccineRecord> _allVaccines = [];
   bool _isLoading = true;
   String? _error;
-  // bool _showPending = true;
   _DisplayCategory _selectedCategory = _DisplayCategory.pending;
 
   static const String apiBaseUrl = 'http://localhost:5000';
@@ -91,8 +94,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
-          _allVaccines =
-              data.map((json) => VaccineRecord.fromJson(json)).toList();
+          _allVaccines = data
+              .map((json) => VaccineRecord.fromJson(json))
+              .toList();
           _isLoading = false;
         });
       } else {
@@ -172,7 +176,71 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     }
   }
 
-  // ✅ UPDATED METHOD: Mark vaccine as already taken
+  // ✅ NEW: Call backend to generate the actual schedule
+  Future<void> _createRabiesSchedule({
+    required DateTime exposureDate,
+    required bool isImmunized,
+    required _RabiesCategory category,
+  }) async {
+    // 1. Show loading
+    if (!mounted) return;
+    Navigator.pop(context); // Close the assessment dialog first
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: Colors.orange)),
+    );
+
+    try {
+      // 2. Call Backend
+      // NOTE: You need to implement this endpoint on your backend!
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/api/vaccines/situational/schedule-rabies'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_authToken',
+        },
+        body: json.encode({
+          'exposureDate': exposureDate.toIso8601String().split('T')[0],
+          'isPreviouslyImmunized': isImmunized,
+          'exposureCategory': category.name, // 'catII' or 'catIII'
+        }),
+      );
+
+      // 3. Handle Response
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ Rabies schedule created successfully!'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        // 4. Switch to Pending tab to show new doses
+        setState(() {
+          _selectedCategory = _DisplayCategory.pending;
+        });
+        _fetchVaccines(); // Reload data
+      } else {
+        throw Exception('Failed to create schedule: ${response.body}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading if still open
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _markVaccineAsTaken(
     VaccineRecord vaccine, {
     required int dosesCompleted,
@@ -189,12 +257,10 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     );
 
     try {
-      // ✅ Build the request body
       final Map<String, dynamic> requestBody = {
-        // ✅ Send the full ISO string, though backend only uses the date part for now
         'dateTaken': dateTaken.toIso8601String().split('T')[0],
         'markAllAsCompleted': markAllAsCompleted,
-        'dosesCompleted': dosesCompleted, // Send anyway
+        'dosesCompleted': dosesCompleted,
       };
       if (brandId != null) {
         requestBody['brandId'] = brandId;
@@ -209,7 +275,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         body: json.encode(requestBody),
       );
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
 
       if (response.statusCode == 200) {
         await _fetchVaccines();
@@ -222,7 +288,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           ),
         );
       } else {
-        // ✅ Handle specific errors from the backend
         String errorMessage = 'Failed to mark as taken';
         try {
           final data = json.decode(response.body);
@@ -246,7 +311,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -259,62 +324,45 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     }
   }
 
-  // ✅ COMPLETELY REBUILT METHOD: Show dialog to mark as taken
-  // ✅ COMPLETELY REBUILT METHOD: Show dialog to mark as taken
   void _showMarkAsTakenDialog(VaccineRecord vaccine) {
-    // --- NEW: Enum for date input type ---
-    // enum _DateInputType { specific, range }
-
-    // --- Dialog State ---
     int selectedDoses = 1;
-    // MODIFICATION: Initialize with a clean date (noon)
     DateTime selectedSpecificDate = DateUtils.dateOnly(
-            DateTime.now().subtract(const Duration(days: 7)))
-        .add(const Duration(hours: 12));
+      DateTime.now().subtract(const Duration(days: 7)),
+    ).add(const Duration(hours: 12));
     bool markAllDoses = false;
 
-    // --- NEW: State for approximate date ---
     _DateInputType dateInputType = _DateInputType.specific;
     String? selectedRange;
     final List<String> dateRanges = const [
       '2-4 months ago',
       '6 months ago',
       '1 year ago',
-      '2+ years ago'
+      '2+ years ago',
     ];
-    // ---
 
-    // Brand state
     List<_Brand> availableBrands = [];
     _Brand? selectedBrand;
     bool isBrandLoading = true;
     bool brandFetchFailed = false;
 
-    // This tracks the *actual* total doses based on brand selection
     int totalDosesForDisplay = vaccine.totalDoses ?? 1;
-    // --- End Dialog State ---
 
-    // --- NEW: Helper function to calculate date from range ---
     DateTime calculateDateFromRange(String range) {
       final now = DateTime.now();
       switch (range) {
         case '2-4 months ago':
-          // Approximates as 3 months ago
           return now.subtract(const Duration(days: 3 * 30));
         case '6 months ago':
-          // Approximates as 6 months ago
           return now.subtract(const Duration(days: 6 * 30));
         case '1 year ago':
           return now.subtract(const Duration(days: 365));
         case '2+ years ago':
-          // Approximates as 2 years ago
           return now.subtract(const Duration(days: 2 * 365));
         default:
           return now;
       }
     }
 
-    // Function to fetch brands for this specific user vaccine record
     Future<void> fetchBrands(StateSetter setDialogState) async {
       try {
         setDialogState(() {
@@ -322,10 +370,10 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           brandFetchFailed = false;
         });
 
-        // UPDATED API CALL
         final res = await http.get(
           Uri.parse(
-              '$apiBaseUrl/api/vaccines/brands/for-user-vaccine/${vaccine.id}'),
+            '$apiBaseUrl/api/vaccines/brands/for-user-vaccine/${vaccine.id}',
+          ),
           headers: {'Authorization': 'Bearer $_authToken'},
         );
 
@@ -338,13 +386,11 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           setDialogState(() {
             availableBrands = brandList;
             isBrandLoading = false;
-            // If brands exist, pre-select the first one
             if (availableBrands.isNotEmpty) {
               selectedBrand = availableBrands.first;
               totalDosesForDisplay = selectedBrand!.numberOfDoses;
-              selectedDoses = 1; // Reset doses
+              selectedDoses = 1;
             } else {
-              // No brands, use the generic vaccine's dose count
               totalDosesForDisplay = vaccine.totalDoses ?? 1;
             }
           });
@@ -368,7 +414,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          // Fetch brands *once* when the dialog builds
           if (isBrandLoading && !brandFetchFailed) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               fetchBrands(setDialogState);
@@ -376,15 +421,19 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           }
 
           return AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             title: Row(
               children: [
                 Icon(Icons.history, color: Color(0xFF8B5FBF)),
                 SizedBox(width: 8),
                 Expanded(
-                    child: Text('Mark as Already Taken',
-                        style: TextStyle(fontSize: 18))),
+                  child: Text(
+                    'Mark as Already Taken',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
               ],
             ),
             content: SingleChildScrollView(
@@ -392,35 +441,36 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  /// Vaccine name
                   Text(
                     vaccine.name,
                     style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2D3748)),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2D3748),
+                    ),
                   ),
                   SizedBox(height: 20),
-
-                  /// BRAND DROPDOWN
                   if (isBrandLoading)
                     Center(
-                        child:
-                            CircularProgressIndicator(color: Color(0xFF8B5FBF))),
-
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF8B5FBF),
+                      ),
+                    ),
                   if (!isBrandLoading && brandFetchFailed)
                     Center(
-                        child: Text('Failed to load brands.',
-                            style: TextStyle(color: Colors.red))),
-
-                  // Only show brand dropdown if brands are available
+                      child: Text(
+                        'Failed to load brands.',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
                   if (!isBrandLoading && availableBrands.isNotEmpty) ...[
                     Text(
                       'Select Brand:*',
                       style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[800]),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
                     ),
                     SizedBox(height: 8),
                     Container(
@@ -445,10 +495,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         onChanged: (value) {
                           setDialogState(() {
                             selectedBrand = value;
-                            // Update total doses based on brand selection
                             totalDosesForDisplay =
-                                value?.numberOfDoses ?? (vaccine.totalDoses ?? 1);
-                            // Reset selected doses if it's now invalid
+                                value?.numberOfDoses ??
+                                (vaccine.totalDoses ?? 1);
                             if (selectedDoses > totalDosesForDisplay) {
                               selectedDoses = totalDosesForDisplay;
                             }
@@ -458,26 +507,22 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     ),
                     SizedBox(height: 20),
                   ],
-
-                  /// "ALL DOSES" CHECKBOX
-                  // (This logic is already correct as per your request)
                   CheckboxListTile(
                     title: Text(
                       'All doses of this vaccine are taken',
                       style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[800]),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
                     ),
                     value: markAllDoses,
                     onChanged: (bool? value) {
                       setDialogState(() {
                         markAllDoses = value ?? false;
                         if (markAllDoses) {
-                          // If "all" is checked, set doses to max
                           selectedDoses = totalDosesForDisplay;
                         } else {
-                          // If unchecked, reset to 1
                           selectedDoses = 1;
                         }
                       });
@@ -487,9 +532,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     activeColor: Color(0xFF8B5FBF),
                   ),
                   SizedBox(height: 12),
-
-                  /// DOSE DROPDOWN
-                  // Disable dropdown if "all doses" is checked
                   IgnorePointer(
                     ignoring: markAllDoses,
                     child: Opacity(
@@ -500,9 +542,10 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                           Text(
                             'How many doses have you completed?',
                             style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800]),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
                           ),
                           SizedBox(height: 8),
                           Container(
@@ -518,13 +561,13 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                               value: selectedDoses,
                               isExpanded: true,
                               underline: SizedBox.shrink(),
-                              // Use dynamic totalDosesForDisplay
                               items: List.generate(
                                 totalDosesForDisplay,
                                 (i) => DropdownMenuItem(
                                   value: i + 1,
                                   child: Text(
-                                      'Dose ${i + 1} of $totalDosesForDisplay'),
+                                    'Dose ${i + 1} of $totalDosesForDisplay',
+                                  ),
                                 ),
                               ),
                               onChanged: (v) =>
@@ -536,17 +579,15 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     ),
                   ),
                   SizedBox(height: 20),
-
-                  /// --- NEW: DATE INPUT SECTION ---
                   Text(
                     'When did you take the *last* dose?',
                     style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[800]),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
                   ),
                   SizedBox(height: 8),
-                  // --- NEW: Toggle Buttons ---
                   ToggleButtons(
                     isSelected: [
                       dateInputType == _DateInputType.specific,
@@ -577,31 +618,25 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     ],
                   ),
                   SizedBox(height: 12),
-
-                  // --- NEW: Conditional Input ---
                   if (dateInputType == _DateInputType.specific)
-                    // 1. Specific Date/Time Picker
                     GestureDetector(
                       onTap: () async {
-                        // 1. Pick Date
                         final pickedDate = await showDatePicker(
                           context: context,
                           initialDate: selectedSpecificDate,
-                          firstDate: DateTime(1900), // Allow historical dates
+                          firstDate: DateTime(1900),
                           lastDate: DateTime.now(),
                         );
-                        if (pickedDate == null) return; // User canceled date
+                        if (pickedDate == null) return;
                         if (!context.mounted) return;
 
-                        // 2. Pick Time
                         final pickedTime = await showTimePicker(
                           context: context,
-                          initialTime:
-                              TimeOfDay.fromDateTime(selectedSpecificDate),
+                          initialTime: TimeOfDay.fromDateTime(
+                            selectedSpecificDate,
+                          ),
                         );
 
-                        // 3. Combine Date and Time
-                        // If user cancels time, default to 12:00 PM (noon)
                         final time =
                             pickedTime ?? const TimeOfDay(hour: 12, minute: 0);
 
@@ -623,22 +658,27 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.calendar_today,
-                                color: Color(0xFF8B5FBF), size: 20),
+                            Icon(
+                              Icons.calendar_today,
+                              color: Color(0xFF8B5FBF),
+                              size: 20,
+                            ),
                             SizedBox(width: 12),
-                            // MODIFICATION: Format to show date and time
-                            Text(DateFormat.yMMMd()
-                                .add_jm()
-                                .format(selectedSpecificDate)),
+                            Text(
+                              DateFormat.yMMMd().add_jm().format(
+                                selectedSpecificDate,
+                              ),
+                            ),
                             Spacer(),
-                            Icon(Icons.arrow_drop_down,
-                                color: Color(0xFF8B5FBF)),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              color: Color(0xFF8B5FBF),
+                            ),
                           ],
                         ),
                       ),
                     )
                   else
-                    // 2. Approximate Range Dropdown
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
@@ -663,46 +703,44 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         },
                       ),
                     ),
-                  // --- END OF NEW DATE SECTION ---
                 ],
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child:
-                    Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
               ),
               ElevatedButton(
                 onPressed: () async {
-                  // --- NEW: Date validation and selection logic ---
                   DateTime dateToSend;
-
                   if (dateInputType == _DateInputType.specific) {
                     dateToSend = selectedSpecificDate;
                   } else {
-                    // It's a range, check if one was selected
                     if (selectedRange == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content:
-                              Text('Please select an approximate time range.'),
+                          content: Text(
+                            'Please select an approximate time range.',
+                          ),
                           backgroundColor: Colors.red,
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
-                      return; // Stop submission
+                      return;
                     }
                     dateToSend = calculateDateFromRange(selectedRange!);
                   }
-                  // ---
 
-                  // Validation: If brands exist, one must be selected
                   if (availableBrands.isNotEmpty && selectedBrand == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content:
-                            Text('Please select a brand for this vaccine.'),
+                        content: Text(
+                          'Please select a brand for this vaccine.',
+                        ),
                         backgroundColor: Colors.red,
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -710,13 +748,11 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     return;
                   }
 
-                  Navigator.pop(context); // Close dialog
-
-                  // Call updated method with all parameters
+                  Navigator.pop(context);
                   await _markVaccineAsTaken(
                     vaccine,
                     dosesCompleted: selectedDoses,
-                    dateTaken: dateToSend, // ✅ Use the new date logic
+                    dateTaken: dateToSend,
                     markAllAsCompleted: markAllDoses,
                     brandId: selectedBrand?.id,
                   );
@@ -745,9 +781,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         if (parsedDate.isAfter(DateTime.now())) {
           initial = parsedDate;
         }
-      } catch (e) {
-        // ignore parse error
-      }
+      } catch (e) {}
     }
 
     final DateTime? pickedDate = await showDatePicker(
@@ -779,23 +813,396 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     }
   }
 
-  // --- NEW NAVIGATION METHOD ---
   void _navigateToCertificateScreen(VaccineRecord vaccine) {
-    // We pass the whole vaccine record, which includes the list of certificates
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => VaccineCertificateScreen(vaccine: vaccine),
       ),
     ).then((_) {
-      // This runs when we come BACK from the certificate screen.
-      // We should refresh the data in case a file was uploaded.
       _fetchVaccines();
     });
   }
-  // -------------------------
 
-  // ✅ NEW: Helper widget for empty states
+  // ✅ UPDATED: Strict check for 3+ doses AND future due date
+  bool _isRabiesImmunized() {
+    final now = DateTime.now();
+
+    return _allVaccines.any((v) {
+      // 1. Check if it's a rabies vaccine
+      if (!v.name.toLowerCase().contains('rabies')) return false;
+
+      // 2. Condition: 3/3 doses complete (checking >= 3 to be safe)
+      if (v.completedDoses < 3) return false;
+
+      // 3. Condition: next due date is > today
+      // If nextDueDate is null (e.g., fully done forever), this returns false.
+      if (v.nextDueDate == null) return false;
+
+      final nextDue = DateTime.tryParse(v.nextDueDate!);
+      // Return true only if we successfully parsed a date AND it is in the future
+      return nextDue != null && nextDue.isAfter(now);
+    });
+  }
+
+  void _showRabiesAssessmentDialog() {
+    _RabiesCategory? selectedCategory;
+    // Uses the updated strict check for 3 doses + future due date
+    bool isImmunized = _isRabiesImmunized();
+    DateTime exposureDate = DateTime.now(); // Default Day 0 to today
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.pets, color: Colors.orange[800]),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Animal Bite Assessment',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // --- IMMUNIZATION STATUS BANNER ---
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isImmunized
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isImmunized ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isImmunized ? Icons.shield : Icons.shield_outlined,
+                          color: isImmunized ? Colors.green : Colors.red,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            isImmunized
+                                ? 'Previously Immunized against Rabies'
+                                : 'NOT Previously Immunized',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isImmunized
+                                  ? Colors.green[800]
+                                  : Colors.red[800],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // --- DATE SELECTION (DAY 0) ---
+                  const Text(
+                    'When did the bite occur? (Day 0)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: exposureDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setStateDialog(() => exposureDate = picked);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 18,
+                            color: Colors.orange[800],
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            DateFormat.yMMMd().format(exposureDate),
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // --- CATEGORY SELECTION ---
+                  const Text(
+                    'Select Exposure Category:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  RadioListTile<_RabiesCategory>(
+                    title: const Text(
+                      'Category II (Minor)',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text(
+                      'Nibbling of uncovered skin, minor scratches without bleeding.',
+                    ),
+                    value: _RabiesCategory.catII,
+                    groupValue: selectedCategory,
+                    activeColor: Colors.orange[800],
+                    onChanged: (val) =>
+                        setStateDialog(() => selectedCategory = val),
+                  ),
+                  RadioListTile<_RabiesCategory>(
+                    title: const Text(
+                      'Category III (Severe)',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text(
+                      'Transdermal bites, licks on broken skin, bleeding, mucous contact.',
+                    ),
+                    value: _RabiesCategory.catIII,
+                    groupValue: selectedCategory,
+                    activeColor: Colors.red[800],
+                    onChanged: (val) =>
+                        setStateDialog(() => selectedCategory = val),
+                  ),
+
+                  // --- RECOMMENDATION PREVIEW ---
+                  if (selectedCategory != null) ...[
+                    const Divider(height: 30, thickness: 1),
+                    const Text(
+                      'Recommendation:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildRabiesRecommendation(selectedCategory!, isImmunized),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+              // ✅ PASS ALL DATA TO FINDER ON CONFIRM
+              ElevatedButton(
+                onPressed: selectedCategory == null
+                    ? null
+                    : () {
+                        Navigator.pop(context); // Close dialog
+                        _findAndScheduleRabies(
+                          exposureDate: exposureDate,
+                          isImmunized: isImmunized,
+                          category: selectedCategory!,
+                        );
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange[800],
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Schedule Dose 1 Now'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ✅ UPDATED: Finds best record based on status & provides contextual alerts
+  void _findAndScheduleRabies({
+    required DateTime exposureDate,
+    required bool isImmunized,
+    required _RabiesCategory category,
+  }) {
+    try {
+      // 1. Determine status keyword to look for in vaccine name
+      final statusKeyword = isImmunized ? 'immunized' : 'unimmunized';
+
+      // 2. Try finding a SPECIFIC matched record first
+      // e.g., looks for "Rabies Vaccine (Post-exposure) - Unimmunized"
+      VaccineRecord? targetVaccine;
+      try {
+        targetVaccine = _allVaccines.firstWhere((v) {
+          final name = v.name.toLowerCase();
+          return name.contains('rabies') &&
+              name.contains('post') &&
+              name.contains(statusKeyword) &&
+              !v.isCompleted;
+        });
+      } catch (_) {
+        targetVaccine = null;
+      }
+
+      // 3. Fallback: Find ANY generic "Post-exposure" record if specific one is missing
+      targetVaccine ??= _allVaccines.firstWhere((v) {
+        final name = v.name.toLowerCase();
+        return name.contains('rabies') &&
+            name.contains('post') &&
+            !v.isCompleted;
+      }, orElse: () => throw Exception('No Post-exposure record found'));
+
+      // 4. Switch to Pending tab so user sees the new schedule immediately
+      setState(() {
+        _selectedCategory = _DisplayCategory.pending;
+      });
+
+      // 5. Use EXISTING workflow to schedule Dose 1
+      _scheduleVaccine(targetVaccine, exposureDate);
+
+      // 6. Show CRITICAL reminder based on Category & Status
+      String reminderText =
+          'Dose 1 scheduled! Remember to follow the full regimen.';
+      Color snackBarColor = Colors.orange[900]!;
+
+      if (!isImmunized && category == _RabiesCategory.catIII) {
+        // Critical case: needs RIG
+        reminderText =
+            '⚠️ CRITICAL: For Category III, you MUST also get Rabies Immunoglobulin (RIG) immediately!';
+        snackBarColor = Colors.red[800]!;
+      } else if (!isImmunized) {
+        reminderText =
+            'Dose 1 scheduled. You need ALL 5 doses (Days 0,3,7,14,28).';
+      } else {
+        reminderText = 'Dose 1 scheduled. You only need 2 doses (Days 0 & 3).';
+      }
+
+      Future.delayed(const Duration(seconds: 1), () {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(reminderText),
+            backgroundColor: snackBarColor,
+            duration: const Duration(
+              seconds: 8,
+            ), // Longer duration for importance
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {}, // Dismisses
+            ),
+          ),
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // Show error if NO appropriate record was found in the list
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Missing Vaccine Record'),
+          content: const Text(
+            'We could not find a "Rabies Post-Exposure" vaccine in your records list.\n\nPlease contact support to have this situational vaccine added to your profile so it can be scheduled.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildRabiesRecommendation(
+    _RabiesCategory category,
+    bool isImmunized,
+  ) {
+    bool needsRIG = !isImmunized && category == _RabiesCategory.catIII;
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'RIG (Immunoglobulin): ',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Expanded(
+                child: Text(
+                  needsRIG
+                      ? '✅ Infiltrate wounds with RIG as soon as possible'
+                      : '❌ NOT indicated',
+                  style: TextStyle(
+                    color: needsRIG ? Colors.red[700] : Colors.grey[700],
+                    fontWeight: needsRIG ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Vaccine Schedule:',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          if (isImmunized) ...[
+            Text('• Intradermal (ID): 2 doses (days 0, 3)'),
+            Text('  OR'),
+            Text('• Intramuscular (IM): 2 doses (days 0, 3)'),
+          ] else ...[
+            Text('• Intradermal (ID): 4 doses (days 0, 3, 7, 28)'),
+            Text('  OR'),
+            Text('• Intramuscular (IM): 5 doses (days 0, 3, 7, 14, 28)'),
+          ],
+          SizedBox(height: 16),
+          Text(
+            '⚠️ Seek immediate medical attention to administer these doses.',
+            style: TextStyle(
+              color: Colors.orange[900],
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState({
     required IconData icon,
     required String title,
@@ -806,11 +1213,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 48.0),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 64,
-              color: Colors.grey[300],
-            ),
+            Icon(icon, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
             Text(
               title,
@@ -823,6 +1226,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
             const SizedBox(height: 8),
             Text(
               message,
+              textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey[500]),
             ),
           ],
@@ -840,31 +1244,40 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   }) {
     final bool isActive = _selectedCategory == category;
     return Expanded(
+      // Use flex 1 for all to distribute evenly
+      flex: 1,
       child: GestureDetector(
         onTap: () => setState(() => _selectedCategory = category),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
           decoration: BoxDecoration(
             color: isActive ? activeColor : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
                 color: isActive ? Colors.white : Colors.grey[600],
-                size: 20,
+                size: 22,
               ),
-              const SizedBox(width: 8),
-              Text(
-                text,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: isActive ? Colors.white : Colors.grey[600],
+              // Only show text if it fits, or scale it down
+              if (isActive || MediaQuery.of(context).size.width > 350) ...[
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isActive ? Colors.white : Colors.grey[600],
+                    ),
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ],
           ),
         ),
@@ -874,27 +1287,20 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ NEW: Add a third list for boosters
     final List<VaccineRecord> completedDisplayList = [];
     final List<VaccineRecord> pendingDisplayList = [];
     final List<VaccineRecord> boosterDisplayList = [];
 
-    // ✅ NEW: This logic sorts into all 3 lists
     for (final record in _allVaccines) {
       if (record.isCompleted) {
-        // This is a fully completed, non-recurring vaccine.
         completedDisplayList.add(record);
       } else {
-        // This is PENDING (status != 'completed')
-
-        // Check for its "completed" part (for partials/boosters)
         final completedPart = record.completedPart;
         if (completedPart != null) {
           completedDisplayList.add(completedPart);
         }
-
-        // Now, sort the *pending* record itself
-        bool isBooster = record.totalDoses != null &&
+        bool isBooster =
+            record.totalDoses != null &&
             record.completedDoses >= record.totalDoses!;
 
         if (isBooster) {
@@ -960,45 +1366,52 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   ),
                   child: Column(
                     children: [
-                      // --- THIS IS THE TOGGLE BAR SECTION ---
                       Padding(
-                        padding: const EdgeInsets.all(24.0),
+                        padding: const EdgeInsets.all(16.0),
                         child: Container(
+                          width: double.infinity,
                           decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Row(
-                            children: [
-                              _buildToggleTab(
-                                context,
-                                text: 'Pending (${pendingDisplayList.length})',
-                                icon: Icons.schedule,
-                                category: _DisplayCategory.pending,
-                                activeColor: const Color(0xFF8B5FBF),
-                              ),
-                              _buildToggleTab(
-                                context,
-                                text: 'Booster (${boosterDisplayList.length})',
-                                icon: Icons.health_and_safety_outlined,
-                                category: _DisplayCategory.booster,
-                                activeColor: const Color(0xFF3182CE),
-                              ),
-                              _buildToggleTab(
-                                context,
-                                text: 'Completed (${completedDisplayList.length})',
-                                icon: Icons.check_circle,
-                                category: _DisplayCategory.completed,
-                                activeColor: const Color(0xFF10B981),
-                              ),
-                            ], // ⬅️ Row's children END here
+                          child: Padding(
+                            padding: const EdgeInsets.all(4.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildToggleTab(
+                                  context,
+                                  text: 'Pending',
+                                  icon: Icons.schedule,
+                                  category: _DisplayCategory.pending,
+                                  activeColor: const Color(0xFF8B5FBF),
+                                ),
+                                _buildToggleTab(
+                                  context,
+                                  text: 'Booster',
+                                  icon: Icons.health_and_safety_outlined,
+                                  category: _DisplayCategory.booster,
+                                  activeColor: const Color(0xFF3182CE),
+                                ),
+                                _buildToggleTab(
+                                  context,
+                                  text: 'Completed',
+                                  icon: Icons.check_circle,
+                                  category: _DisplayCategory.completed,
+                                  activeColor: const Color(0xFF10B981),
+                                ),
+                                _buildToggleTab(
+                                  context,
+                                  text: 'Situational',
+                                  icon: Icons.medical_services_outlined,
+                                  category: _DisplayCategory.situational,
+                                  activeColor: Colors.orange.shade700,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ), // ⬅️ Padding (for toggles) ENDS here
-
-                      // --- ✅ CORRECTED: ---
-                      // The Expanded content starts HERE,
-                      // as the *next* child of the Column.
+                      ),
                       Expanded(
                         child: _buildContent(
                           completedDisplayList,
@@ -1067,7 +1480,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       );
     }
 
-    if (pending.isEmpty && completed.isEmpty) {
+    if (pending.isEmpty &&
+        completed.isEmpty &&
+        _selectedCategory != _DisplayCategory.situational) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1081,12 +1496,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                 fontWeight: FontWeight.bold,
                 color: Colors.grey[800],
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your vaccination records will appear here.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -1112,8 +1521,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // This switch statement displays the correct list
-            // based on the _selectedCategory state
             Builder(
               builder: (context) {
                 switch (_selectedCategory) {
@@ -1130,7 +1537,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                           .map((vaccine) => _buildPendingCard(vaccine))
                           .toList(),
                     );
-                  
+
                   case _DisplayCategory.booster:
                     if (boosters.isEmpty) {
                       return _buildEmptyState(
@@ -1139,13 +1546,12 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                         message: 'Your upcoming boosters will appear here.',
                       );
                     }
-                    // Boosters use the same card as pending
                     return Column(
                       children: boosters
                           .map((vaccine) => _buildPendingCard(vaccine))
                           .toList(),
                     );
-                  
+
                   case _DisplayCategory.completed:
                     if (completed.isEmpty) {
                       return _buildEmptyState(
@@ -1159,6 +1565,97 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                           .map((vaccine) => _buildCompletedCard(vaccine))
                           .toList(),
                     );
+
+                  case _DisplayCategory.situational:
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Emergency & Situational Vaccines',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.pets,
+                                        color: Colors.orange.shade800,
+                                        size: 28,
+                                      ),
+                                    ),
+                                    SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Animal Bite (Rabies)',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF2D3748),
+                                            ),
+                                          ),
+                                          Text(
+                                            'For dog/animal bites, scratches, or licks on broken skin.',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 20),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _showRabiesAssessmentDialog,
+                                    icon: Icon(Icons.medical_services_outlined),
+                                    label: Text(
+                                      'Report Bite & Get Recommendation',
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange.shade700,
+                                      foregroundColor: Colors.white,
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
                 }
               },
             ),
@@ -1167,10 +1664,10 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
       ),
     );
   }
-  // --- PENDING CARD (No changes needed) ---
 
   Widget _buildPendingCard(VaccineRecord vaccine) {
-    final bool isScheduled = vaccine.nextDueDate != null &&
+    final bool isScheduled =
+        vaccine.nextDueDate != null &&
         DateTime.tryParse(vaccine.nextDueDate!)?.isAfter(DateTime.now()) ==
             true;
 
@@ -1268,7 +1765,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
               const Divider(height: 24),
               Row(
                 children: [
-                  // Schedule Button
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _showScheduleDialog(vaccine),
@@ -1293,8 +1789,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-
-                  // Mark as Taken Button
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _showMarkAsTakenDialog(vaccine),
@@ -1322,9 +1816,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     );
   }
 
-  //
-  // --- COMPLETED CARD (No changes needed) ---
-  //
   Widget _buildCompletedCard(VaccineRecord vaccine) {
     String dateText = 'Date not recorded';
     final completionDate = vaccine.lastDoseDate;
