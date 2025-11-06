@@ -6,7 +6,8 @@ import {
     getTravelVaccines,
     markVaccineAsTaken,
     selectVaccineBrand,
-    getVaccineBrands
+    getVaccineBrands,
+    createSituationalSchedule
 } from "../controllers/vaccineController.js";
 import { authenticate } from "../middleware/authMiddleware.js";
 
@@ -28,4 +29,11 @@ router.get('/brands/for-user-vaccine/:userVaccineId', authenticate, getVaccineBr
 router.put('/brands/:userVaccineId', authenticate, selectVaccineBrand)
 
 router.get("/travel",getTravelVaccines);
+
+router.post(
+  '/situational/schedule-rabies',
+  authenticate,
+  createSituationalSchedule,
+);
+
 export default router;

@@ -1022,7 +1022,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     ? null
                     : () {
                         Navigator.pop(context); // Close dialog
-                        _findAndScheduleRabies(
+                        _createRabiesSchedule(
                           exposureDate: exposureDate,
                           isImmunized: isImmunized,
                           category: selectedCategory!,
