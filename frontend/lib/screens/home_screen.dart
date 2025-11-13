@@ -45,7 +45,7 @@ class HomeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      '👋 Hi Rayyan!',
+                      '👋 Welcome to VaccineVault!',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
