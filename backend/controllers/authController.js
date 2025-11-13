@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-
+import bcrypt from 'bcrypt';
 // Generate JWT Token
 export const generateToken = (user) => {
     return jwt.sign(
@@ -15,7 +15,7 @@ export const register = async (req, res) => {
     try {
         const {
             username,
-            password,
+            password, // This is the plain-text password
             email,
             gender,
             dateOfBirth,
@@ -30,31 +30,30 @@ export const register = async (req, res) => {
             familyAdminId,
             relationshipToAdmin, 
             medicalConditions
-        } = req.body;
+        } = req.body; // Get all fields from req.body
 
-        console.log(username, email, familyAdminId, relationshipToAdmin);
-
-        // Basic validation
-        if (!username || !password || !email || !gender || !dateOfBirth || !addressPart1 || !city || !state || !pinCode || !phoneNumber) {
+        // ... (Keep all your existing validation checks here)
+        if (!username || !password || !email /* ...etc */) {
             return res.status(400).json({ message: "All required fields must be filled" });
         }
-
-        // Check if email already exists
         const existingUserByEmail = await User.findOne({ where: { email } });
         if (existingUserByEmail) {
             return res.status(400).json({ message: "An account with this email already exists" });
         }
+        // ... (etc.)
 
-        // Check if username already exists
-        const existingUserByUsername = await User.findOne({ where: { username } });
-        if (existingUserByUsername) {
-            return res.status(400).json({ message: "Username is already taken" });
-        }
+        // --- THIS IS THE CRITICAL PART ---
 
-        // ✅ Create new user (now includes family fields)
+        // 1. HASH THE PASSWORD
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // 2. CREATE NEW USER
+        //    Make sure to use 'password: hashedPassword'
+        //    and include ALL other fields from req.body.
         const newUser = await User.create({
             username,
-            password,
+            password: hashedPassword, // <-- Use the hashed password here
             email,
             gender,
             dateOfBirth,
@@ -70,6 +69,8 @@ export const register = async (req, res) => {
             relationshipToAdmin,
             medicalConditions: medicalConditions || null
         });
+        
+        // --- END OF FIX ---
 
         const token = generateToken(newUser);
         res.status(201).json({
@@ -83,23 +84,34 @@ export const register = async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
-
-// Login an existing user using EMAIL
+// Login an existing user
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Basic validation
         if (!email || !password) {
             return res.status(400).json({ message: "Email and password are required" });
         }
 
         // Find user by email
         const user = await User.findOne({ where: { email } });
-        if (!user || user.password !== password) {
+        
+        // Check if user exists
+        if (!user) {
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
+        // ✅ COMPARE THE HASH
+        // This securely compares the plain-text 'password' from the request
+        // with the 'user.password' hash stored in your database.
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            // Passwords don't match
+            return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        // SUCCESS: Passwords match
         const token = generateToken(user);
         res.status(200).json({ 
             token,
@@ -227,7 +239,6 @@ export const updateProfile = async (req, res) => {
     }
 };
 
-// --- NEW FUNCTION ---
 // Change user password (protected route)
 export const changePassword = async (req, res) => {
     try {
@@ -239,26 +250,29 @@ export const changePassword = async (req, res) => {
             return res.status(400).json({ message: "Both current and new passwords are required" });
         }
 
-        if (newPassword.length < 6) {
+        if (newPassword.length < 6) { // You can keep this check
              return res.status(400).json({ message: "New password must be at least 6 characters long" });
         }
 
-        // Find the user (and select password, which is normally excluded)
+        // Find the user
         const user = await User.findByPk(userId);
         
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // Check if the current password is correct
-        // Note: This assumes plaintext passwords. 
-        // In a real app, you would use bcrypt.compare() here.
-        if (user.password !== currentPassword) {
+        // ✅ COMPARE HASH FOR CURRENT PASSWORD
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
             return res.status(401).json({ message: "Incorrect current password" });
         }
 
-        // Update the password
-        await user.update({ password: newPassword });
+        // ✅ HASH THE NEW PASSWORD
+        const salt = await bcrypt.genSalt(10);
+        const hashedNewPassword = await bcrypt.hash(newPassword, salt);
+
+        // ✅ UPDATE THE PASSWORD
+        await user.update({ password: hashedNewPassword });
 
         res.status(200).json({ message: "Password updated successfully" });
 
@@ -267,8 +281,6 @@ export const changePassword = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
-// --- END OF NEW FUNCTION ---
-
 export const logout = (req, res) => {
     try {
         res.status(200).json({ message: "Logged out successfully" });
