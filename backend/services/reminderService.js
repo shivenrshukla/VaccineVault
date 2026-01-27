@@ -1,19 +1,33 @@
-import cron from 'node-cron';
 import { Op } from 'sequelize';
-import UserVaccine from '../models/userVaccine.js';
+import UserVaccine from '../models/UserVaccine.js';
 import User from '../models/User.js';
 import Vaccine from '../models/Vaccine.js';
 import transporter from '../config/mailer.js';
 import admin from '../config/firebase.js';
+import NotificationLog from '../models/NotificationLog.js';
 
-// --- Email & Push Notification functions ---
+/**
+ * Guaranteed email delivery with persistence, idempotency, and retry metadata
+ */
+const sendGuaranteedEmail = async (user, vaccine, dueDate, isOverdue) => {
+    const today = new Date().toISOString().split('T')[0];
 
-const sendReminderEmail = async (user, vaccine, dueDate, isOverdue) => {
-    // Dynamically change the subject line if the vaccine is overdue
+    const [log] = await NotificationLog.findOrCreate({
+        where: {
+            userId: user.id,
+            vaccineId: vaccine.id,
+            channel: 'email',
+            reminderDate: today
+        }
+    });
+
+    // Idempotency: already sent today
+    if (log.status === 'sent') return;
+
     const subject = isOverdue
         ? `Action Required: Your ${vaccine.name} dose is overdue!`
         : `Vaccination Reminder: Your ${vaccine.name} dose is due soon!`;
-        
+
     const body = isOverdue
         ? `<p>This is a reminder that your dose for the <strong>${vaccine.name}</strong> vaccine was due on <strong>${dueDate}</strong> and is now overdue.</p>`
         : `<p>This is a friendly reminder that your next dose for the <strong>${vaccine.name}</strong> vaccine is due on <strong>${dueDate}</strong>.</p>`;
@@ -21,92 +35,141 @@ const sendReminderEmail = async (user, vaccine, dueDate, isOverdue) => {
     const mailOptions = {
         from: `"VaccineVault" <${process.env.EMAIL_USER}>`,
         to: user.email,
-        subject: subject,
+        subject,
         html: `
             <p>Hello ${user.username},</p>
             ${body}
             <p>This vaccine helps protect against: ${vaccine.diseaseProtectedAgainst}.</p>
-            <p>Please schedule an appointment with your healthcare provider as soon as possible to stay on track.</p>
-            <br>
+            <p>Please schedule an appointment with your healthcare provider as soon as possible.</p>
+            <br />
             <p>Thank you,</p>
             <p>The VaccineVault Team</p>
-        `,
+        `
     };
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`Reminder email sent to ${user.email} for ${vaccine.name}`);
+
+        await log.update({
+            status: 'sent',
+            lastAttemptAt: new Date(),
+            errorMessage: null
+        });
+
+        console.log(`✅ Email reminder sent to ${user.email} for ${vaccine.name}`);
     } catch (error) {
-        console.error(`Failed to send email to ${user.email}:`, error);
+        await log.update({
+            status: 'failed',
+            retryCount: log.retryCount + 1,
+            lastAttemptAt: new Date(),
+            errorMessage: error.message
+        });
+
+        console.error(`❌ Failed to send email to ${user.email}:`, error.message);
     }
 };
 
-const sendPushNotification = async (user, vaccine, dueDate, isOverdue) => {
+/**
+ * Guaranteed push notification delivery with persistence and idempotency
+ */
+const sendGuaranteedPushNotification = async (user, vaccine, dueDate, isOverdue) => {
     if (!user.pushNotificationToken) {
-        console.log(`User ${user.username} does not have a push token. Skipping.`);
+        console.log(`ℹ️ User ${user.username} has no push token. Skipping push.`);
         return;
     }
 
-    // Dynamically change the push notification body
+    const today = new Date().toISOString().split('T')[0];
+
+    const [log] = await NotificationLog.findOrCreate({
+        where: {
+            userId: user.id,
+            vaccineId: vaccine.id,
+            channel: 'push',
+            reminderDate: today
+        }
+    });
+
+    // Idempotency
+    if (log.status === 'sent') return;
+
     const body = isOverdue
         ? `Your ${vaccine.name} dose was due on ${dueDate}!`
         : `Your ${vaccine.name} dose is due on ${dueDate}.`;
 
     const message = {
+        token: user.pushNotificationToken,
         notification: {
             title: isOverdue ? 'Vaccine Overdue!' : 'Vaccine Reminder!',
-            body: body,
-        },
-        token: user.pushNotificationToken,
+            body
+        }
     };
-    
+
     try {
         await admin.messaging().send(message);
-        console.log(`Push notification sent to ${user.username}`);
+
+        await log.update({
+            status: 'sent',
+            lastAttemptAt: new Date(),
+            errorMessage: null
+        });
+
+        console.log(`✅ Push notification sent to ${user.username}`);
     } catch (error) {
-        console.error(`Failed to send push notification to ${user.username}:`, error);
+        await log.update({
+            status: 'failed',
+            retryCount: log.retryCount + 1,
+            lastAttemptAt: new Date(),
+            errorMessage: error.message
+        });
+
+        console.error(`❌ Failed to send push notification to ${user.username}:`, error.message);
     }
 };
 
-// --- This is the core logic function with the updated query ---
+/**
+ * Core reminder check logic
+ */
 export const runReminderCheck = async () => {
-    console.log('--- Triggered Reminder Check ---');
-    const today = new Date().toISOString().split('T')[0]; // Get today's date in 'YYYY-MM-DD' format
+    console.log('--- 🔔 Triggered Reminder Check ---');
+
+    const today = new Date().toISOString().split('T')[0];
 
     try {
-        // Find all "pending" vaccines where the due date is today or any day in the past.
         const dueAndOverdueVaccinations = await UserVaccine.findAll({
             where: {
                 status: 'pending',
                 nextDueDate: {
-                    [Op.lte]: today // "lte" means "Less Than or Equal To"
+                    [Op.lte]: today
                 }
             },
             include: [
-                { model: User, attributes: ['email', 'username', 'pushNotificationToken'] },
-                { model: Vaccine, attributes: ['name', 'diseaseProtectedAgainst'] }
+                { model: User, attributes: ['id', 'email', 'username', 'pushNotificationToken'] },
+                { model: Vaccine, attributes: ['id', 'name', 'diseaseProtectedAgainst'] }
             ]
         });
 
-        console.log(`Found ${dueAndOverdueVaccinations.length} due or overdue vaccinations to remind.`);
+        console.log(`Found ${dueAndOverdueVaccinations.length} due or overdue vaccinations.`);
+
         for (const record of dueAndOverdueVaccinations) {
-            // We now know any vaccine found by this query is overdue or due today.
             const isOverdue = new Date(record.nextDueDate) < new Date(today);
-            await sendReminderEmail(record.User, record.Vaccine, record.nextDueDate, isOverdue);
-            await sendPushNotification(record.User, record.Vaccine, record.nextDueDate, isOverdue);
+
+            await sendGuaranteedEmail(
+                record.User,
+                record.Vaccine,
+                record.nextDueDate,
+                isOverdue
+            );
+
+            await sendGuaranteedPushNotification(
+                record.User,
+                record.Vaccine,
+                record.nextDueDate,
+                isOverdue
+            );
         }
     } catch (error) {
-        console.error('Error during reminder check:', error);
+        console.error('❌ Error during reminder check:', error);
     }
 };
 
-// The cron job remains the same, it just calls our updated logic function.
-export const startReminderService = () => {
-    cron.schedule('0 8 * * *', async () => {
-        await runReminderCheck();
-    }, {
-        scheduled: true,
-        timezone: "Asia/Kolkata"
-    });
-    console.log('✅ Reminder service has been scheduled to run daily at 8:00 AM.');
-};
+// Redis handled with start command, must be handled seperately in production

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:vaccinevault/app_theme.dart';
 import 'package:vaccinevault/providers/theme_provider.dart';
 import 'package:vaccinevault/screens/main_wrapper_screen.dart';
+import 'package:vaccinevault/routes/app_routes.dart';
 import 'screens/getting_started_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -22,39 +24,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
-        return MaterialApp(
-          title: 'VaccineVault',
-          theme: ThemeData(
-            primarySwatch: Colors.deepPurple,
-            visualDensity: VisualDensity.adaptivePlatformDensity,
-            fontFamily: 'SF Pro Display',
-            brightness: Brightness.light,
-            scaffoldBackgroundColor: Colors.white,
-          ),
-          darkTheme: ThemeData(
-            primarySwatch: Colors.deepPurple,
-            visualDensity: VisualDensity.adaptivePlatformDensity,
-            fontFamily: 'SF Pro Display',
-            brightness: Brightness.dark,
-            scaffoldBackgroundColor: const Color(0xFF1A1A1A),
-            cardColor: const Color(0xFF2D2D2D),
-          ),
-          themeMode: themeProvider.themeMode,
-          home: GettingStartedScreen(),
-          routes: {
-            '/getting-started': (context) => GettingStartedScreen(),
-            '/login': (context) => LoginScreen(),
-            '/signup': (context) => SignupScreen(),
-            '/home': (context) => MainWrapperScreen(),
-            '/settings': (context) => const SettingsPage(),
-            '/profile': (context) => const ProfilePage(),
-          },
-        );
+    final themeProvider = context.watch<ThemeProvider>();
+    return MaterialApp(
+      themeMode: themeProvider.themeMode,
+      title: 'VaccineVault',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      home: const GettingStartedScreen(),
+      routes: {
+        AppRoutes.gettingStartedScreen: (context) => const GettingStartedScreen(),
+        AppRoutes.login: (context) => const LoginScreen(),
+        AppRoutes.register: (context) => const SignupScreen(),
+        AppRoutes.home: (context) => const MainWrapperScreen(),
+        AppRoutes.settings: (context) => const SettingsPage(),
+        AppRoutes.profile: (context) => const ProfilePage(),
       },
     );
   }
 }
-
-

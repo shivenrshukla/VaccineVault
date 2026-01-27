@@ -57,7 +57,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: IconButton(
@@ -87,7 +87,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -142,7 +142,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? Colors.white
-                                : Colors.white.withOpacity(0.3),
+                                : Colors.white.withValues(alpha: 0.3),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -222,7 +222,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
           border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -238,7 +238,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                 gradient: LinearGradient(
                   colors: [
                     Color(vaccine['color']),
-                    Color(vaccine['color']).withOpacity(0.7),
+                    Color(vaccine['color']).withValues(alpha: 0.7),
                   ],
                 ),
                 borderRadius: const BorderRadius.only(
@@ -251,7 +251,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(vaccine['icon'], color: Colors.white, size: 28),
@@ -274,7 +274,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                           'Protects against: ${vaccine['disease']}',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                           ),
                         ),
                       ],
@@ -387,7 +387,7 @@ class _KnowledgeBaseScreenState extends State<KnowledgeBaseScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Color(vaccine['color']).withOpacity(0.1),
+                      color: Color(vaccine['color']).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(

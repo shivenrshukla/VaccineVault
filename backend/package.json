@@ -15,8 +15,16 @@
   "author": "Shiven",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start:redis": "redis-server",
+    "start:api": "node index.js",
+    "start:worker": "node workers/reminderWorker.js",
+    "start:scheduler": "node services/reminderScheduler.js",
+    "start": "npm-run-all --parallel start:redis start:api start:worker start:scheduler",
+    "dev:redis": "redis-server",
+    "dev:api": "nodemon index.js",
+    "dev:worker": "nodemon workers/reminderWorker.js",
+    "dev:scheduler": "nodemon services/reminderScheduler.js",
+    "dev": "npm-run-all --parallel dev:redis dev:api dev:worker dev:scheduler",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -24,6 +32,7 @@
     "@mapbox/mapbox-sdk": "^0.16.2",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.66.2",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.2",
@@ -36,10 +45,12 @@
     "nodemailer": "^7.0.9",
     "pg": "^8.16.3",
     "pg-hstore": "^2.3.4",
+    "redis-server": "^1.2.2",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
+    "npm-run-all": "^4.1.5",
     "sequelize-cli": "^6.6.3"
   }
 }

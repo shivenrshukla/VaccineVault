@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:vaccinevault/providers/theme_provider.dart'; // Ensure this path is correct
+import 'package:vaccinevault/providers/theme_provider.dart';
 import 'package:vaccinevault/services/auth_service.dart';
+import 'package:vaccinevault/services/profile_service.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; // 1. ADDED PLATFORM CHECK IMPORT
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -18,6 +19,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String selectedLanguage = 'English';
 
   final AuthService _authService = AuthService();
+  final ProfileService _profileService = ProfileService();
   final LocalAuthentication _localAuth = LocalAuthentication();
 
   final _dialogFormKey = GlobalKey<FormState>();
@@ -70,7 +72,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: IconButton(
@@ -235,7 +237,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
+                                  color: Colors.green.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Text(
@@ -292,7 +294,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                     bool canCheck =
                                         await _localAuth.canCheckBiometrics;
                                     if (!canCheck) {
-                                      if (!mounted) return;
+
+                                      if (!context.mounted) return;
+
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         const SnackBar(
@@ -319,7 +323,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                           .setBiometricEnabled(true);
                                     }
                                   } catch (e) {
-                                    if (!mounted) return;
+
+                                    if (!context.mounted) return;
+
                                     ScaffoldMessenger.of(context)
                                         .showSnackBar(
                                       SnackBar(
@@ -433,10 +439,10 @@ class _SettingsPageState extends State<SettingsPage> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -464,7 +470,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.1),
+                color: theme.primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: theme.primaryColor, size: 24),
@@ -495,7 +501,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             trailing ??
                 Icon(Icons.chevron_right,
-                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5)),
+                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
           ],
         ),
       ),
@@ -517,7 +523,7 @@ class _SettingsPageState extends State<SettingsPage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.1),
+              color: theme.primaryColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: theme.primaryColor, size: 24),
@@ -566,16 +572,28 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Select Language'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildLanguageOption('English'),
-            _buildLanguageOption('Hindi'),
-            _buildLanguageOption('Marathi'),
-            _buildLanguageOption('Gujarati'),
-            _buildLanguageOption('Bengali'), // Corrected typo
-            _buildLanguageOption('Telugu'),
-          ],
+        content: RadioGroup<String>(
+          groupValue: selectedLanguage,
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                selectedLanguage = value;
+              });
+              // Close the dialog immediately after selection
+              Navigator.pop(context);
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildLanguageOption('English'),
+              _buildLanguageOption('Hindi'),
+              _buildLanguageOption('Marathi'),
+              _buildLanguageOption('Gujarati'),
+              _buildLanguageOption('Bengali'),
+              _buildLanguageOption('Telugu'),
+            ],
+          )
         ),
       ),
     );
@@ -585,14 +603,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return RadioListTile<String>(
       title: Text(language),
       value: language,
-      groupValue: selectedLanguage,
       activeColor: Theme.of(context).primaryColor,
-      onChanged: (value) {
-        setState(() {
-          selectedLanguage = value!;
-        });
-        Navigator.pop(context);
-      },
     );
   }
 
@@ -716,12 +727,12 @@ class _SettingsPageState extends State<SettingsPage> {
                             });
 
                             try {
-                              await _authService.changePassword(
+                              await _profileService.changePassword(
                                 _currentPasswordController.text,
                                 _newPasswordController.text,
                               );
 
-                              if (!mounted) return;
+                              if (!context.mounted) return;
                               Navigator.pop(context); // Close dialog
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -779,8 +790,10 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () async {
               await _authService.logout();
 
-              if (!mounted) return;
+              if (!context.mounted) return;
+
               Navigator.pop(context); // Close dialog
+
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 '/login',

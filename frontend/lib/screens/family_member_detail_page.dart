@@ -73,6 +73,8 @@ class _FamilyMemberDetailPageState extends State<FamilyMemberDetailPage> {
                 // Calls the service to remove the member
                 await FamilyService.removeFamilyMember(widget.memberId);
 
+                if (!context.mounted) return;
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -169,6 +171,8 @@ class _FamilyMemberDetailPageState extends State<FamilyMemberDetailPage> {
                   dateController.text,
                 );
                 // --- END ASSUMED API CALL ---
+
+                if (!context.mounted) return;
 
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -337,7 +341,7 @@ class _FamilyMemberDetailPageState extends State<FamilyMemberDetailPage> {
                     child: CircleAvatar(
                       radius: 40,
                       backgroundColor:
-                          theme.colorScheme.onPrimary.withOpacity(0.3),
+                          theme.colorScheme.onPrimary.withValues(alpha: 0.3),
                       child: Text(
                         widget.memberName.isNotEmpty
                             ? widget.memberName[0].toUpperCase()
@@ -356,7 +360,7 @@ class _FamilyMemberDetailPageState extends State<FamilyMemberDetailPage> {
                       _memberData!['email'] ?? '',
                       style: TextStyle(
                         fontSize: 14,
-                        color: theme.colorScheme.onPrimary.withOpacity(0.9),
+                        color: theme.colorScheme.onPrimary.withValues(alpha: 0.9),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -366,14 +370,14 @@ class _FamilyMemberDetailPageState extends State<FamilyMemberDetailPage> {
                         Icon(
                           Icons.cake_outlined,
                           size: 14,
-                          color: theme.colorScheme.onPrimary.withOpacity(0.8),
+                          color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           _memberData!['dateOfBirth'] ?? '',
                           style: TextStyle(
                             fontSize: 13,
-                            color: theme.colorScheme.onPrimary.withOpacity(0.8),
+                            color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
                           ),
                         ),
                         if (_memberData!['relationshipToAdmin'] != null) ...[
@@ -385,7 +389,7 @@ class _FamilyMemberDetailPageState extends State<FamilyMemberDetailPage> {
                             ),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.onPrimary
-                                  .withOpacity(0.2),
+                                  .withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/auth_service.dart'; // Make sure this path is correct
+import '../services/auth_service.dart';
+import 'package:logger/logger.dart';
 
 class VaccineCentresScreen extends StatefulWidget {
   const VaccineCentresScreen({super.key});
@@ -15,6 +16,7 @@ class VaccineCentresScreen extends StatefulWidget {
 class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   bool _isLoading = true;
   String? _error;
+  final logger = Logger();
 
   // User data
   String? _userPinCode;
@@ -26,7 +28,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   List<VaccinationCenter> _centers = [];
 
   final AuthService _authService = AuthService();
-  static const String apiBaseUrl = 'http://localhost:5000'; // Your API URL
+  static const String apiBaseUrl = 'http://10.0.2.2:5000'; // Your API URL
 
   @override
   void initState() {
@@ -37,12 +39,15 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   // Helper function to launch a URL (for phone or email)
   void _launchUrl(String urlScheme) async {
     final Uri uri = Uri.parse(urlScheme);
-    if (await canLaunchUrl(uri)) {
+
+    final bool canLaunch = await canLaunchUrl(uri);
+
+    if (!mounted) return;
+
+    if (canLaunch) {
       await launchUrl(uri);
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not launch $urlScheme')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not launch $urlScheme')));
     }
   }
 
@@ -118,7 +123,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
 
           _userAddress = addressParts.join(', ');
 
-          print('✅ User Address: $_userAddress');
+          logger.i('✅ User Address: $_userAddress');
         });
       } else if (response.statusCode == 401) {
         await _authService.logout();
@@ -129,7 +134,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         throw Exception('Failed to load profile');
       }
     } catch (e) {
-      print('Error fetching user profile: $e');
+      logger.e('Error fetching user profile: $e');
       throw Exception('Failed to load user profile: $e');
     }
   }
@@ -154,7 +159,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         '$apiBaseUrl/api/find/find-centers',
       ).replace(queryParameters: queryParams);
 
-      print('🔍 Fetching centers from: $uri');
+      logger.i('🔍 Fetching centers from: $uri');
 
       final response = await http.get(
         uri,
@@ -168,22 +173,16 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         final data = json.decode(response.body);
 
         // Extract search location (pincode-based location)
-        final searchLocation = data['searchLocation'];
-        if (searchLocation != null) {
-          _userLat = (searchLocation['lat'] as num?)?.toDouble();
-          _userLng = (searchLocation['lng'] as num?)?.toDouble();
-        }
-
-        // Extract actual user location if geocoded
-        final userLocation = data['userLocation'];
-        if (userLocation != null) {
-          _userLat = (userLocation['lat'] as num?)?.toDouble();
-          _userLng = (userLocation['lng'] as num?)?.toDouble();
-          print('✅ User geocoded location: $_userLat, $_userLng');
+        final userLocObj = data['userLocation'];
+        if (userLocObj != null && userLocObj['coordinates'] != null) {
+          final coords = userLocObj['coordinates'];
+          _userLat = (coords['lat'] as num?)?.toDouble();
+          _userLng = (coords['lng'] as num?)?.toDouble();
+          logger.i('✅ User geocoded location: $_userLat, $_userLng');
         }
 
         setState(() {
-          final centersData = data['foundCenters'] as List;
+          final centersData = (data['centers'] ?? []) as List;
           _centers = centersData
               .map((center) => VaccinationCenter.fromJson(center))
               .toList();
@@ -191,11 +190,11 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
           _isLoading = false;
         });
 
-        print('✅ Found ${_centers.length} vaccination centers');
+        logger.i('✅ Found ${_centers.length} vaccination centers');
 
         // Log distance calculation method used
         if (_centers.isNotEmpty && _centers.first.distanceSource != null) {
-          print(
+          logger.i(
             '📍 Distance calculated using: ${_centers.first.distanceSource}',
           );
         }
@@ -205,11 +204,20 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
           Navigator.pushReplacementNamed(context, '/login');
         }
       } else {
+        // Handle cases where backend sends 200 but logic fails (CoWIN limits etc)
         final errorData = json.decode(response.body);
+        // Sometimes your backend returns 200 with a "warning" or "message" but empty centers
+        if (errorData['centers'] != null) {
+             setState(() {
+               _centers = [];
+               _isLoading = false;
+             });
+             return;
+        }
         throw Exception(errorData['error'] ?? 'Failed to load centers');
       }
     } catch (e) {
-      print('Error fetching vaccination centers: $e');
+      logger.e('Error fetching vaccination centers: $e');
       throw Exception('Failed to load vaccination centers: $e');
     }
   }
@@ -246,7 +254,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF8B5FBF).withOpacity(0.1),
+                    color: const Color(0xFF8B5FBF).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -441,7 +449,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -516,10 +524,10 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF8B5FBF).withOpacity(0.1),
+            color: const Color(0xFF8B5FBF).withValues(alpha: 0.1),
             border: Border(
               bottom: BorderSide(
-                color: const Color(0xFF8B5FBF).withOpacity(0.2),
+                color: const Color(0xFF8B5FBF).withValues(alpha: 0.2),
               ),
             ),
           ),
@@ -624,10 +632,10 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF8B5FBF).withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFF8B5FBF).withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

@@ -1,557 +1,267 @@
 // controllers/finderController.js
 import axios from 'axios';
 import https from 'https';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getMapMyIndiaToken } from './mapMyIndiaAuth.js';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MAPMYINDIA_BASE_URL = 'https://atlas.mapmyindia.com/api/places';
-const MAPMYINDIA_SEARCH_URL = `${MAPMYINDIA_BASE_URL}/search/json`;
-const MAPMYINDIA_GEOCODE_URL = `${MAPMYINDIA_BASE_URL}/geocode`; // Geocoding endpoint
 const httpsAgent = new https.Agent({ family: 4 });
 
-// Pin code coordinate cache for fallback
-const PINCODE_COORDINATES_CACHE = {
-  '401105': { lat: 19.2403, lng: 72.8517 },
-  '400001': { lat: 18.9388, lng: 72.8354 },
-  '110001': { lat: 28.6139, lng: 77.2090 },
-  '560001': { lat: 12.9716, lng: 77.5946 },
-  '700001': { lat: 22.5726, lng: 88.3639 },
-  '600001': { lat: 13.0827, lng: 80.2707 },
-};
-
-// Gemini Configuration
-let genAI;
-let geminiModel;
-if (GEMINI_API_KEY) {
-  try {
-    genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    console.log('✅ Gemini AI SDK initialized with gemini-2.5-flash');
-  } catch (error) {
-    console.error('❌ Failed to initialize Gemini AI SDK:', error.message);
-  }
-} else {
-  console.warn('⚠️ GEMINI_API_KEY not found. Will use fallback coordinates.');
-}
+// --- HELPERS ---
 
 /**
- * Haversine formula to calculate distance between two coordinates
- * @param {number} lat1 - Latitude of first point
- * @param {number} lon1 - Longitude of first point
- * @param {number} lat2 - Latitude of second point
- * @param {number} lon2 - Longitude of second point
- * @returns {number} Distance in kilometers
+ * Calculates straight-line distance (Haversine)
  */
 function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-  const toRadians = (degree) => (degree * Math.PI) / 180;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371; // Earth radius in km
 
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
 
-  const lat1Rad = toRadians(lat1);
-  const lat2Rad = toRadians(lat2);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
 
-  const a = 
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  const earthRadiusKm = 6371;
-
-  return earthRadiusKm * c;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 /**
- * Geocode an address using MapMyIndia Geocoding API
- * @param {string} address - Full address to geocode
- * @param {string} token - MapMyIndia access token
- * @returns {Object|null} { lat, lng } or null if failed
+ * 1. Get Coordinates for Pincode (Critical for OSM search)
+ * Uses MapMyIndia first (User has keys), falls back to OpenStreetMap Nominatim
  */
-async function geocodeAddressWithMapMyIndia(address, token) {
-  if (!token) {
-    console.error('[DEBUG] ❌ MapMyIndia token not provided for geocoding');
-    return null;
-  }
-
-  if (!address || address.trim() === '') {
-    console.error('[DEBUG] ❌ Invalid address provided for geocoding');
-    return null;
+async function getCoordinatesForPincode(pinCode) {
+  try {
+    // Try MapMyIndia first (Best for India)
+    const token = await getMapMyIndiaToken();
+    const mmiRes = await axios.get(
+      "https://atlas.mapmyindia.com/api/places/geocode",
+      {
+        params: { address: pinCode, itemCount: 1 },
+        headers: { Authorization: `Bearer ${token}` },
+        httpsAgent,
+        timeout: 5000
+      }
+    );
+    
+    if (mmiRes.data?.copResults?.[0]) {
+      const res = mmiRes.data.copResults[0];
+      return { 
+        lat: parseFloat(res.latitude || res.lat), 
+        lng: parseFloat(res.longitude || res.lng),
+        source: 'MapMyIndia'
+      };
+    }
+  } catch (e) {
+    console.warn("MMI Geocode failed, trying Nominatim...");
   }
 
   try {
-    console.log(`[DEBUG] 🗺️ Geocoding address with MapMyIndia: "${address}"`);
-
-    const response = await axios.get(MAPMYINDIA_GEOCODE_URL, {
+    // Fallback: OSM Nominatim (Free, no key)
+    const nomRes = await axios.get('https://nominatim.openstreetmap.org/search', {
       params: {
-        address: address,
-        itemCount: 1, // We only need the best match
+        postalcode: pinCode,
+        country: 'India',
+        format: 'json',
+        limit: 1
       },
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      httpsAgent: httpsAgent,
-      timeout: 10000,
+      headers: { 'User-Agent': 'VaccineApp/1.0' }, // Required by OSM
+      timeout: 5000
     });
 
-    console.log('[DEBUG] MapMyIndia Geocode Response:', JSON.stringify(response.data, null, 2));
-
-    // MapMyIndia geocode response structure
-    if (response.data && response.data.copResults) {
-      const results = response.data.copResults;
-      
-      // Try different possible result structures
-      let lat = null;
-      let lng = null;
-
-      // Check if it's an array or object
-      if (Array.isArray(results) && results.length > 0) {
-        const firstResult = results[0];
-        lat = firstResult.latitude || firstResult.lat;
-        lng = firstResult.longitude || firstResult.lng || firstResult.lon;
-      } else if (typeof results === 'object') {
-        lat = results.latitude || results.lat;
-        lng = results.longitude || results.lng || results.lon;
-      }
-
-      if (lat && lng) {
-        const parsedLat = parseFloat(lat);
-        const parsedLng = parseFloat(lng);
-        
-        if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
-          console.log(`[DEBUG] ✅ MapMyIndia geocoded address to: ${parsedLat}, ${parsedLng}`);
-          return { lat: parsedLat, lng: parsedLng };
-        }
-      }
+    if (nomRes.data?.[0]) {
+      return { 
+        lat: parseFloat(nomRes.data[0].lat), 
+        lng: parseFloat(nomRes.data[0].lon),
+        source: 'OSM Nominatim'
+      };
     }
-
-    console.warn('[DEBUG] ⚠️ No valid results from MapMyIndia geocoding');
-    return null;
-  } catch (error) {
-    if (error.response?.status === 401) {
-      console.error('[DEBUG] ❌ MapMyIndia 401 Unauthorized - Token may be expired');
-    } else if (error.response?.status === 403) {
-      console.error('[DEBUG] ❌ MapMyIndia 403 Forbidden - Check API permissions');
-    } else {
-      console.error('[DEBUG] ❌ MapMyIndia geocoding error:', error.message);
-      if (error.response) {
-        console.error('[DEBUG] Response data:', error.response.data);
-      }
-    }
-    return null;
-  }
-}
-
-/**
- * Get coordinates from Gemini with retry logic and fallback
- */
-async function getCoordinatesFromGemini(pinCode, retries = 2) {
-  if (PINCODE_COORDINATES_CACHE[pinCode]) {
-    console.log(`[DEBUG] ✅ Using cached coordinates for pincode: ${pinCode}`);
-    return PINCODE_COORDINATES_CACHE[pinCode];
+  } catch (e) {
+    console.error("Geocoding failed completely:", e.message);
   }
 
-  if (!geminiModel) {
-    console.error('[DEBUG] Gemini model not initialized, using fallback.');
-    return null;
-  }
-
-  console.log(`[DEBUG] Asking Gemini for coordinates for pincode: ${pinCode}`);
-
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const prompt = `Provide the approximate latitude and longitude coordinates for the center of the area covered by Indian pincode ${pinCode}. Respond ONLY with the latitude, a comma, and the longitude (e.g., "19.22, 72.97"). Do not include any other text, units, or explanations.`;
-      
-      const result = await geminiModel.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text().trim();
-      
-      console.log(`[DEBUG] Gemini response (attempt ${attempt}): "${text}"`);
-      
-      const parts = text.split(',');
-      if (parts.length === 2) {
-        const lat = parseFloat(parts[0].trim());
-        const lng = parseFloat(parts[1].trim());
-        
-        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-          console.log(`[DEBUG] ✅ Gemini returned valid coordinates: ${lat}, ${lng}`);
-          PINCODE_COORDINATES_CACHE[pinCode] = { lat, lng };
-          return { lat, lng };
-        } else {
-          console.error(`[DEBUG] Coordinates out of range: ${text}`);
-        }
-      } else {
-        console.error(`[DEBUG] Invalid format (expected 'lat,lng'): ${text}`);
-      }
-      
-    } catch (error) {
-      console.error(`[DEBUG] ❌ Gemini error (attempt ${attempt}/${retries}):`, error.message);
-      
-      if (error.message.includes('503') || error.message.includes('overloaded')) {
-        if (attempt < retries) {
-          const waitTime = 1000 * attempt;
-          console.log(`[DEBUG] ⏳ Model overloaded, waiting ${waitTime}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          continue;
-        } else {
-          console.warn('[DEBUG] ⚠️ Gemini model still overloaded after retries');
-        }
-      }
-    }
-  }
-
-  console.warn(`[DEBUG] ⚠️ Gemini failed for pincode ${pinCode}`);
   return null;
 }
 
 /**
- * @desc    Find healthcare facilities near a pincode with distance calculation
- * @route   GET /api/find/find-centers
- * @access  Public
- * @query   {string} pinCode - Pincode to search near
- * @query   {string} userAddress - (Optional) User's full address for accurate distance calculation
+ * 2. Fetch Hospitals from OpenStreetMap (Overpass API)
+ * Queries for hospitals and vaccination centers around a point
  */
-export const findCenters = async (req, res) => {
-  const { pinCode, userAddress } = req.query;
-
-  // Input Validation
-  if (!pinCode) {
-    return res.status(400).json({ error: 'A pinCode is required.' });
-  }
-
-  console.log('=== [DEBUG] New Find Centers Request ===');
-  console.log(`[DEBUG] Pin Code: ${pinCode}`);
-  console.log(`[DEBUG] User Address: ${userAddress || 'Not provided'}`);
+async function fetchFromOpenStreetMap(lat, lng, radius = 5000) {
+  console.log(`[DEBUG] 🌍 Querying OpenStreetMap around ${lat}, ${lng}...`);
+  
+  // Overpass QL Query: Find nodes/ways with amenity=hospital OR healthcare=vaccination_centre
+  const query = `
+    [out:json][timeout:50];
+    (
+      node["amenity"="hospital"](around:${radius},${lat},${lng});
+      way["amenity"="hospital"](around:${radius},${lat},${lng});
+      node["healthcare"="vaccination_centre"](around:${radius},${lat},${lng});
+      node["medical_specialty"="vaccination"](around:${radius},${lat},${lng});
+    );
+    out center body;
+  >;
+    out skel qt;
+  `;
 
   try {
-    // ✅ Get fresh MapMyIndia token
-    const MAPMYINDIA_TOKEN = await getMapMyIndiaToken();
-
-    // STEP 0: Geocode user's address if provided
-    let userCoordinates = null;
-    if (userAddress) {
-      userCoordinates = await geocodeAddressWithMapMyIndia(userAddress, MAPMYINDIA_TOKEN);
-      if (userCoordinates) {
-        console.log(`[DEBUG] ✅ User location: ${userCoordinates.lat}, ${userCoordinates.lng}`);
-      } else {
-        console.warn('[DEBUG] ⚠️ Failed to geocode user address');
-      }
-    }
-
-    // STEP 1A: Get City/State from pincode
-    console.log(`[DEBUG] Step 1A: Getting location details for pincode: ${pinCode}`);
-    let targetCity = '';
-    let targetState = '';
-
-    try {
-      const pincodeDetailsResponse = await axios.get(MAPMYINDIA_SEARCH_URL, {
-        params: { query: pinCode, itemcount: 1 },
-        headers: { 'Authorization': `Bearer ${MAPMYINDIA_TOKEN}` },
-        httpsAgent: httpsAgent,
-        timeout: 10000,
-      });
-
-      const pincodeLocationInfo = pincodeDetailsResponse.data?.suggestedLocations?.find(
-        loc => loc.type === 'PINCODE'
-      );
-
-      if (pincodeLocationInfo && pincodeLocationInfo.placeAddress) {
-        const addressParts = pincodeLocationInfo.placeAddress.split(',').map(part => part.trim());
-        if (addressParts.length >= 2) {
-          targetState = addressParts[addressParts.length - 1];
-          targetCity = addressParts[addressParts.length - 2];
-
-          if (targetState.length < 3 || targetState.toLowerCase() === 'india') {
-            targetState = '';
-            if (addressParts.length >= 3) {
-              const potentialState = addressParts[addressParts.length - 2];
-              if (potentialState.length >= 3 && potentialState.toLowerCase() !== 'india') {
-                targetState = potentialState;
-                targetCity = addressParts[addressParts.length - 3];
-              }
-            }
-          }
-          console.log(`[DEBUG] Target City: "${targetCity}", State: "${targetState}"`);
-        }
-      }
-    } catch (error) {
-      console.warn('[DEBUG] ⚠️ Failed to get city/state, will skip filtering:', error.message);
-    }
-
-    // STEP 1B: Get coordinates
-    console.log(`[DEBUG] Step 1B: Getting coordinates for pincode: ${pinCode}`);
-    const coordinates = await getCoordinatesFromGemini(pinCode);
-
-    if (!coordinates || typeof coordinates.lat !== 'number' || typeof coordinates.lng !== 'number') {
-      return res.status(404).json({
-        error: 'Could not retrieve coordinates for that pincode. Please check the pincode and try again.'
-      });
-    }
-
-    const { lat, lng } = coordinates;
-    console.log(`[DEBUG] ✅ Using coordinates: ${lat}, ${lng}`);
-
-    // STEP 2: Search for nearby healthcare facilities
-    const searchQuery = "hospital vaccination clinic healthcare";
-    console.log(`[DEBUG] Step 2: Searching for facilities near ${lat},${lng}`);
-
-    const nearbyResponse = await axios.get(MAPMYINDIA_SEARCH_URL, {
-      params: {
-        query: searchQuery,
-        location: `${lat},${lng}`,
-        radius: 10000, // 10km
-      },
-      headers: { 'Authorization': `Bearer ${MAPMYINDIA_TOKEN}` },
-      httpsAgent: httpsAgent,
-      timeout: 15000,
-    });
-
-    const allCentersRaw = nearbyResponse.data.suggestedLocations;
-
-    if (!allCentersRaw || allCentersRaw.length === 0) {
-      return res.status(404).json({
-        error: 'No healthcare facilities found within 10km of this location.',
-        location: { lat, lng, pinCode }
-      });
-    }
-
-    console.log(`[DEBUG] Found ${allCentersRaw.length} facilities`);
-    console.log('[DEBUG] 📊 Sample center structure:', JSON.stringify(allCentersRaw[0], null, 2));
-
-    // STEP 3: Filter by city/state if available
-    let filteredCenters = allCentersRaw;
-
-    if (targetCity && targetState) {
-      const strictlyFiltered = allCentersRaw.filter(center => {
-        const addressLower = center.placeAddress?.toLowerCase() || "";
-        return addressLower.includes(targetCity.toLowerCase()) &&
-               addressLower.includes(targetState.toLowerCase());
-      });
-
-      if (strictlyFiltered.length > 0) {
-        filteredCenters = strictlyFiltered;
-        console.log(`[DEBUG] Filtered to ${filteredCenters.length} centers (city+state match)`);
-      } else if (targetState) {
-        const stateFiltered = allCentersRaw.filter(center => {
-          const addressLower = center.placeAddress?.toLowerCase() || "";
-          return addressLower.includes(targetState.toLowerCase());
-        });
-        if (stateFiltered.length > 0) {
-          filteredCenters = stateFiltered;
-          console.log(`[DEBUG] Filtered to ${filteredCenters.length} centers (state match only)`);
-        }
-      }
-    }
-
-    // STEP 4: Geocode center addresses and calculate distances
-    console.log('[DEBUG] Step 4: Processing centers and calculating distances...');
-    
-    const centersWithDistances = await Promise.all(
-      filteredCenters.map(async (center, index) => {
-        console.log(`[DEBUG] --- Processing Center ${index + 1}: ${center.placeName} ---`);
-        
-        let calculatedDistance = null;
-        let distanceSource = 'MapMyIndia API';
-        let centerLat = null;
-        let centerLng = null;
-        let coordinateSource = null;
-
-        // Try to extract center coordinates from ALL possible MapMyIndia fields
-        const possibleLatFields = ['latitude', 'lat', 'eLat'];
-        const possibleLngFields = ['longitude', 'lng', 'lon', 'eLong'];
-
-        for (const field of possibleLatFields) {
-          if (center[field] && !isNaN(parseFloat(center[field]))) {
-            centerLat = parseFloat(center[field]);
-            break;
-          }
-        }
-
-        for (const field of possibleLngFields) {
-          if (center[field] && !isNaN(parseFloat(center[field]))) {
-            centerLng = parseFloat(center[field]);
-            break;
-          }
-        }
-
-        if (centerLat && centerLng) {
-          coordinateSource = 'MapMyIndia';
-          console.log(`[DEBUG] ✅ MapMyIndia coords: ${centerLat}, ${centerLng}`);
-        } else {
-          console.log(`[DEBUG] ❌ No coordinates in MapMyIndia response`);
-        }
-
-        // Try to extract MapMyIndia distance
-        let mapMyIndiaDistance = null;
-        if (center.distance && !isNaN(parseFloat(center.distance))) {
-          mapMyIndiaDistance = parseFloat(center.distance);
-          console.log(`[DEBUG] MapMyIndia distance field: ${mapMyIndiaDistance} (meters)`);
-        } else {
-          console.log(`[DEBUG] No distance field in MapMyIndia response`);
-        }
-
-        // If user address was provided and geocoded successfully
-        if (userCoordinates) {
-          console.log(`[DEBUG] User coordinates available: ${userCoordinates.lat}, ${userCoordinates.lng}`);
-          
-          // If MapMyIndia doesn't provide center coordinates, geocode the center address
-          if (!centerLat || !centerLng) {
-            console.log(`[DEBUG] 🔍 Geocoding center address: ${center.placeAddress}`);
-            
-            const centerCoords = await geocodeAddressWithMapMyIndia(center.placeAddress, MAPMYINDIA_TOKEN);
-            if (centerCoords) {
-              centerLat = centerCoords.lat;
-              centerLng = centerCoords.lng;
-              coordinateSource = 'MapMyIndia Geocode';
-              console.log(`[DEBUG] ✅ Center geocoded to: ${centerLat}, ${centerLng}`);
-            } else {
-              console.warn(`[DEBUG] ❌ Geocoding failed for center`);
-            }
-          }
-
-          // Calculate distance if we have both user and center coordinates
-          if (centerLat && centerLng && !isNaN(centerLat) && !isNaN(centerLng)) {
-            calculatedDistance = calculateHaversineDistance(
-              userCoordinates.lat,
-              userCoordinates.lng,
-              centerLat,
-              centerLng
-            );
-            
-            distanceSource = coordinateSource === 'MapMyIndia Geocode' 
-              ? 'MapMyIndia Geocode + Haversine'
-              : 'MapMyIndia Coords + Haversine';
-            
-            console.log(`[DEBUG] ✅ Calculated distance: ${calculatedDistance.toFixed(2)} km (via ${distanceSource})`);
-          } else {
-            console.warn(`[DEBUG] ⚠️ Cannot calculate Haversine distance - missing valid coordinates`);
-          }
-        } else {
-          console.log(`[DEBUG] ⚠️ No user coordinates available (geocoding failed or not provided)`);
-        }
-
-        // Determine final distance display and value
-        let displayDistance = 'Distance unknown';
-        let distanceValue = null;
-        let finalDistanceSource = 'Unknown';
-
-        if (calculatedDistance !== null) {
-          // Priority 1: Use our precise Haversine calculation
-          displayDistance = `${calculatedDistance.toFixed(2)} km`;
-          distanceValue = calculatedDistance;
-          finalDistanceSource = distanceSource;
-          console.log(`[DEBUG] 🎯 Using Haversine: ${displayDistance}`);
-        } else if (mapMyIndiaDistance !== null) {
-          // Priority 2: Use MapMyIndia distance (assumed to be in meters)
-          const distanceInKm = mapMyIndiaDistance / 1000;
-          displayDistance = `${distanceInKm.toFixed(2)} km`;
-          distanceValue = distanceInKm;
-          finalDistanceSource = 'MapMyIndia API';
-          console.log(`[DEBUG] 🎯 Using MapMyIndia distance: ${displayDistance}`);
-        } else if (centerLat && centerLng) {
-          // Priority 3: Calculate from pincode center if we have center coords but no user coords
-          const distanceFromPincode = calculateHaversineDistance(
-            lat, lng, // pincode coordinates
-            centerLat, centerLng
-          );
-          displayDistance = `~${distanceFromPincode.toFixed(2)} km`;
-          distanceValue = distanceFromPincode;
-          finalDistanceSource = 'Pincode Center Estimate';
-          console.log(`[DEBUG] 🎯 Using pincode-based estimate: ${displayDistance}`);
-        } else {
-          console.log(`[DEBUG] ❌ No distance available from any source`);
-        }
-
-        console.log(`[DEBUG] Final distance: ${displayDistance} (source: ${finalDistanceSource})`);
-
-        return {
-          name: center.placeName || 'Unknown Center',
-          address: center.placeAddress || 'Address not available',
-          contact: center.contactNumber || 'Not Available',
-          distance: displayDistance,
-          distanceValue: distanceValue,
-          distanceSource: finalDistanceSource,
-          coordinates: {
-            lat: centerLat,
-            lng: centerLng
-          }
-        };
-      })
+    const response = await axios.post(
+      'https://overpass-api.de/api/interpreter',
+      query, // Send raw query string in body
+      { headers: { 'Content-Type': 'text/plain' }, timeout: 10000 }
     );
 
-    // STEP 5: Sort by distance (centers with null distance go to end)
-    const sortedCenters = centersWithDistances.sort((a, b) => {
-      if (a.distanceValue === null && b.distanceValue === null) return 0;
-      if (a.distanceValue === null) return 1;
-      if (b.distanceValue === null) return -1;
-      return a.distanceValue - b.distanceValue;
-    });
+    const elements = response.data.elements || [];
+    
+    // Filter and normalize
+    return elements
+      .filter(el => el.tags && (el.tags.name || el.tags['name:en'])) // Only keep places with names
+      .map(el => {
+        // Extract useful tags
+        const name = el.tags.name || el.tags['name:en'];
+        const street = el.tags['addr:street'] || el.tags['addr:full'] || '';
+        const city = el.tags['addr:city'] || '';
+        const phone = el.tags['contact:phone'] || el.tags.phone || '';
+        
+        // Coordinates (use center for 'ways' which are buildings)
+        const elLat = el.lat || el.center?.lat;
+        const elLng = el.lon || el.center?.lon;
 
-    console.log(`[DEBUG] ✅ Returning ${sortedCenters.length} centers sorted by distance`);
-    const sources = [...new Set(sortedCenters.map(c => c.distanceSource))];
-    console.log(`[DEBUG] Distance sources used: ${sources.join(', ')}`);
-    if (sortedCenters.length > 0 && sortedCenters[0].distanceValue !== null) {
-      console.log(`[DEBUG] Distance range: ${sortedCenters[0].distanceValue.toFixed(2)} km to ${sortedCenters[sortedCenters.length-1]?.distanceValue?.toFixed(2)} km`);
+        return {
+          name: name,
+          address: `${street} ${city}`.trim() || "Address available on map",
+          contact: phone,
+          // OSM doesn't give slots, so we return generic info
+          vaccine: "N/A",
+          minAge: 0,
+          feeType: "Walk-in Inquiry",
+          availableCapacity: 0,
+          lat: elLat,
+          lng: elLng,
+          source: "OpenStreetMap"
+        };
+      });
+  } catch (error) {
+    console.error("OSM Overpass Error:", error.message);
+    return [];
+  }
+}
+
+// --- MAIN CONTROLLER ---
+
+export const findCenters = async (req, res) => {
+  const { pinCode, date, userAddress } = req.query;
+
+  if (!pinCode) {
+    return res.status(400).json({ error: "pinCode is required" });
+  }
+
+  const queryDate = date || new Date().toLocaleDateString("en-GB").split("/").join("-");
+  let results = [];
+  let locationData = null;
+  let userCoords = null; // For exact distance calculation if address provided
+
+  try {
+    // ---------------------------------------------------------
+    // STEP 1: RESOLVE LOCATION (Crucial for OSM Fallback)
+    // ---------------------------------------------------------
+    locationData = await getCoordinatesForPincode(pinCode);
+    
+    // If user provided a specific address string, try to geocode that too for better distance
+    if (userAddress) {
+       // Reuse the existing helper or token for this specific user address
+       // (Simplifying here to just use the pincode center to save API calls)
+       userCoords = locationData; 
     }
 
-    res.json({
-      searchLocation: { 
-        lat, 
-        lng, 
-        pinCode, 
-        source: "Gemini Coordinates" 
-      },
-      userLocation: userCoordinates ? {
-        lat: userCoordinates.lat,
-        lng: userCoordinates.lng,
-        address: userAddress,
-        source: "MapMyIndia Geocode"
-      } : null,
-      foundCenters: sortedCenters,
+    // ---------------------------------------------------------
+    // STEP 2: TRY COWIN (Primary Source)
+    // ---------------------------------------------------------
+    try {
+      console.log(`[DEBUG] 🏥 Trying CoWIN for ${pinCode}...`);
+      const cowinRes = await axios.get(
+        "https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/findByPin",
+        {
+          params: { pincode: pinCode, date: queryDate },
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"
+          },
+          httpsAgent,
+          timeout: 4000 // Fast fail
+        }
+      );
+
+      const sessions = cowinRes.data?.sessions || [];
+      if (sessions.length > 0) {
+        results = sessions.map(s => ({
+          name: s.name,
+          address: `${s.address}, ${s.district_name}`,
+          contact: "CoWIN Portal",
+          vaccine: s.vaccine,
+          feeType: s.fee_type,
+          availableCapacity: s.available_capacity,
+          // CoWIN doesn't give lat/lng in findByPin, so we can't calc exact distance
+          distance: "Approx. (Pincode match)",
+          distanceValue: null,
+          source: "CoWIN"
+        }));
+      }
+    } catch (e) {
+      console.warn("CoWIN failed or blocked:", e.message);
+    }
+
+    // ---------------------------------------------------------
+    // STEP 3: OSM FALLBACK (If CoWIN empty)
+    // ---------------------------------------------------------
+    if (results.length === 0 && locationData) {
+      console.log(`[DEBUG] ⚠️ CoWIN empty. Switching to OpenStreetMap...`);
+      const osmHospitals = await fetchFromOpenStreetMap(locationData.lat, locationData.lng);
+      
+      // Calculate distances for OSM results
+      results = osmHospitals.map(h => {
+        let distStr = "Near Pincode Center";
+        let distVal = null;
+
+        if (locationData && h.lat && h.lng) {
+          distVal = calculateHaversineDistance(locationData.lat, locationData.lng, h.lat, h.lng);
+          distStr = `${distVal.toFixed(2)} km`;
+        }
+
+        return {
+          name: h.name,
+          address: h.address,
+          contact: h.contact || "Check local listing",
+          vaccine: "Check Availability",
+          feeType: "Contact Hospital",
+          availableCapacity: 0,
+          distance: distStr,
+          distanceValue: distVal,
+          source: "OpenStreetMap",
+          coordinates: { lat: h.lat, lng: h.lng }
+        };
+      });
+      
+      // Sort by distance
+      results.sort((a, b) => (a.distanceValue || 999) - (b.distanceValue || 999));
+    }
+
+    // ---------------------------------------------------------
+    // RESPONSE
+    // ---------------------------------------------------------
+    if (results.length === 0) {
+      return res.status(200).json({
+        message: "No centers found via CoWIN or OpenStreetMap.",
+        search: { pinCode, date: queryDate },
+        centers: []
+      });
+    }
+
+    return res.json({
+      search: { pinCode, date: queryDate },
+      userLocation: locationData ? { coordinates: locationData, source: locationData.source } : null,
+      centers: results
     });
 
   } catch (error) {
-    handleApiError(error, res);
+    console.error("Critical Finder Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
-function handleApiError(error, res) {
-  console.error('[DEBUG] ❌ ERROR:', error.message);
-
-  if (error.message.includes('Gemini')) {
-    return res.status(500).json({
-      error: 'Failed to get coordinates. Please try again in a moment.'
-    });
-  }
-
-  if (error.message.includes('MapMyIndia')) {
-    return res.status(500).json({
-      error: 'Geocoding service temporarily unavailable. Please try again.'
-    });
-  }
-
-  if (error.response) {
-    console.error('[DEBUG] API Error Status:', error.response.status);
-    console.error('[DEBUG] API Error Data:', JSON.stringify(error.response.data, null, 2));
-
-    const statusCode = error.response.status;
-    const errorMessage = error.response.data?.error_description ||
-                        error.response.data?.message ||
-                        error.response.data?.error ||
-                        'An error occurred';
-
-    if (statusCode === 401) {
-      return res.status(401).json({
-        error: `Authentication failed: ${errorMessage}`
-      });
-    }
-
-    return res.status(statusCode).json({ error: errorMessage });
-  }
-
-  res.status(500).json({
-    error: 'An unexpected error occurred. Please try again.'
-  });
-}

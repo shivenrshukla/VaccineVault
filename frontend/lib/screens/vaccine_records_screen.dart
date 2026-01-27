@@ -49,7 +49,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   String? _error;
   _DisplayCategory _selectedCategory = _DisplayCategory.pending;
 
-  static const String apiBaseUrl = 'http://localhost:5000';
+  static const String apiBaseUrl = 'http://10.0.2.2:5000';
   final AuthService _authService = AuthService();
   String? _authToken;
 
@@ -325,11 +325,12 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   }
 
   void _showMarkAsTakenDialog(VaccineRecord vaccine) {
+    final bool isBooster = vaccine.totalDoses != null && vaccine.completedDoses >= vaccine.totalDoses!;
     int selectedDoses = 1;
     DateTime selectedSpecificDate = DateUtils.dateOnly(
       DateTime.now().subtract(const Duration(days: 7)),
     ).add(const Duration(hours: 12));
-    bool markAllDoses = false;
+    bool markAllDoses = isBooster;
 
     _DateInputType dateInputType = _DateInputType.specific;
     String? selectedRange;
@@ -430,7 +431,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Mark as Already Taken',
+                    isBooster? 'Record Booster' : 'Mark as Already Taken',
                     style: TextStyle(fontSize: 18),
                   ),
                 ),
@@ -450,6 +451,8 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     ),
                   ),
                   SizedBox(height: 20),
+
+                  // --- BRAND SELECTION ---
                   if (isBrandLoading)
                     Center(
                       child: CircularProgressIndicator(
@@ -498,89 +501,98 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                             totalDosesForDisplay =
                                 value?.numberOfDoses ??
                                 (vaccine.totalDoses ?? 1);
-                            if (selectedDoses > totalDosesForDisplay) {
-                              selectedDoses = totalDosesForDisplay;
+
+                                // If it's NOT a booster, adjust the dropdown logic
+                                if (!isBooster) {
+                                  if (selectedDoses > totalDosesForDisplay) {
+                                    selectedDoses = totalDosesForDisplay;
+                                  }
+                                }
                             }
-                          });
+                          );
                         },
                       ),
                     ),
                     SizedBox(height: 20),
                   ],
-                  CheckboxListTile(
-                    title: Text(
-                      'All doses of this vaccine are taken',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[800],
+                  // --- 2. HIDE DOSES SELECTION IF BOOSTER ---
+                  if (!isBooster) ...[
+                    CheckboxListTile(
+                      title: Text(
+                        'All doses of this vaccine are taken',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
                       ),
+                      value: markAllDoses,
+                      onChanged: (bool? value) {
+                        setDialogState(() {
+                          markAllDoses = value ?? false;
+                          if (markAllDoses) {
+                            selectedDoses = totalDosesForDisplay;
+                          } else {
+                            selectedDoses = 1;
+                          }
+                        });
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: Color(0xFF8B5FBF),
                     ),
-                    value: markAllDoses,
-                    onChanged: (bool? value) {
-                      setDialogState(() {
-                        markAllDoses = value ?? false;
-                        if (markAllDoses) {
-                          selectedDoses = totalDosesForDisplay;
-                        } else {
-                          selectedDoses = 1;
-                        }
-                      });
-                    },
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                    activeColor: Color(0xFF8B5FBF),
-                  ),
-                  SizedBox(height: 12),
-                  IgnorePointer(
-                    ignoring: markAllDoses,
-                    child: Opacity(
-                      opacity: markAllDoses ? 0.5 : 1.0,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'How many doses have you completed?',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
+                    SizedBox(height: 12),
+                    IgnorePointer(
+                      ignoring: markAllDoses,
+                      child: Opacity(
+                        opacity: markAllDoses ? 0.5 : 1.0,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'How many doses have you completed?',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 8),
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Color(0xFF8B5FBF)),
-                              borderRadius: BorderRadius.circular(8),
-                              color: markAllDoses
-                                  ? Colors.grey[200]
-                                  : Colors.white,
-                            ),
-                            child: DropdownButton<int>(
-                              value: selectedDoses,
-                              isExpanded: true,
-                              underline: SizedBox.shrink(),
-                              items: List.generate(
-                                totalDosesForDisplay,
-                                (i) => DropdownMenuItem(
-                                  value: i + 1,
-                                  child: Text(
-                                    'Dose ${i + 1} of $totalDosesForDisplay',
+                            SizedBox(height: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Color(0xFF8B5FBF)),
+                                borderRadius: BorderRadius.circular(8),
+                                color: markAllDoses
+                                    ? Colors.grey[200]
+                                    : Colors.white,
+                              ),
+                              child: DropdownButton<int>(
+                                value: selectedDoses,
+                                isExpanded: true,
+                                underline: SizedBox.shrink(),
+                                items: List.generate(
+                                  totalDosesForDisplay,
+                                  (i) => DropdownMenuItem(
+                                    value: i + 1,
+                                    child: Text(
+                                      'Dose ${i + 1} of $totalDosesForDisplay',
+                                    ),
                                   ),
                                 ),
+                                onChanged: (v) =>
+                                    setDialogState(() => selectedDoses = v!),
                               ),
-                              onChanged: (v) =>
-                                  setDialogState(() => selectedDoses = v!),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(height: 20),
+                    SizedBox(height: 20),
+                  ],
+                  // --- DATE SELECTION (Common to both) ---
                   Text(
-                    'When did you take the *last* dose?',
+                    'When did you take the last dose?',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -781,7 +793,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         if (parsedDate.isAfter(DateTime.now())) {
           initial = parsedDate;
         }
-      } catch (e) {}
+      } catch (e) {
+        // Invalid date format; keep 'initial' as tomorrow (default fallback).
+      }
     }
 
     final DateTime? pickedDate = await showDatePicker(
@@ -872,6 +886,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
               ],
             ),
             content: SingleChildScrollView(
+              // FIX 1: Removed 'RadioGroup' wrapper. Using standard Column.
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -881,8 +896,8 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isImmunized
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.red.withOpacity(0.1),
+                          ? Colors.green.withValues(alpha: 0.1)
+                          : Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isImmunized ? Colors.green : Colors.red,
@@ -963,6 +978,8 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     'Select Exposure Category:',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
+                  
+                  // FIX 2: Restored standard RadioListTile logic
                   RadioListTile<_RabiesCategory>(
                     title: const Text(
                       'Category II (Minor)',
@@ -972,11 +989,14 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                       'Nibbling of uncovered skin, minor scratches without bleeding.',
                     ),
                     value: _RabiesCategory.catII,
-                    groupValue: selectedCategory,
+                    groupValue: selectedCategory, // Connects to the variable
                     activeColor: Colors.orange[800],
-                    onChanged: (val) =>
-                        setStateDialog(() => selectedCategory = val),
+                    // Updates the state
+                    onChanged: (val) {
+                      setStateDialog(() => selectedCategory = val);
+                    },
                   ),
+                  
                   RadioListTile<_RabiesCategory>(
                     title: const Text(
                       'Category III (Severe)',
@@ -986,10 +1006,12 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                       'Transdermal bites, licks on broken skin, bleeding, mucous contact.',
                     ),
                     value: _RabiesCategory.catIII,
-                    groupValue: selectedCategory,
+                    groupValue: selectedCategory, // Connects to the variable
                     activeColor: Colors.red[800],
-                    onChanged: (val) =>
-                        setStateDialog(() => selectedCategory = val),
+                    // Updates the state
+                    onChanged: (val) {
+                      setStateDialog(() => selectedCategory = val);
+                    },
                   ),
 
                   // --- RECOMMENDATION PREVIEW ---
@@ -1016,7 +1038,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                   style: TextStyle(color: Colors.grey[600]),
                 ),
               ),
-              // ✅ PASS ALL DATA TO FINDER ON CONFIRM
+              // Button is disabled until selectedCategory is chosen
               ElevatedButton(
                 onPressed: selectedCategory == null
                     ? null
@@ -1039,103 +1061,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         },
       ),
     );
-  }
-
-  // ✅ UPDATED: Finds best record based on status & provides contextual alerts
-  void _findAndScheduleRabies({
-    required DateTime exposureDate,
-    required bool isImmunized,
-    required _RabiesCategory category,
-  }) {
-    try {
-      // 1. Determine status keyword to look for in vaccine name
-      final statusKeyword = isImmunized ? 'immunized' : 'unimmunized';
-
-      // 2. Try finding a SPECIFIC matched record first
-      // e.g., looks for "Rabies Vaccine (Post-exposure) - Unimmunized"
-      VaccineRecord? targetVaccine;
-      try {
-        targetVaccine = _allVaccines.firstWhere((v) {
-          final name = v.name.toLowerCase();
-          return name.contains('rabies') &&
-              name.contains('post') &&
-              name.contains(statusKeyword) &&
-              !v.isCompleted;
-        });
-      } catch (_) {
-        targetVaccine = null;
-      }
-
-      // 3. Fallback: Find ANY generic "Post-exposure" record if specific one is missing
-      targetVaccine ??= _allVaccines.firstWhere((v) {
-        final name = v.name.toLowerCase();
-        return name.contains('rabies') &&
-            name.contains('post') &&
-            !v.isCompleted;
-      }, orElse: () => throw Exception('No Post-exposure record found'));
-
-      // 4. Switch to Pending tab so user sees the new schedule immediately
-      setState(() {
-        _selectedCategory = _DisplayCategory.pending;
-      });
-
-      // 5. Use EXISTING workflow to schedule Dose 1
-      _scheduleVaccine(targetVaccine, exposureDate);
-
-      // 6. Show CRITICAL reminder based on Category & Status
-      String reminderText =
-          'Dose 1 scheduled! Remember to follow the full regimen.';
-      Color snackBarColor = Colors.orange[900]!;
-
-      if (!isImmunized && category == _RabiesCategory.catIII) {
-        // Critical case: needs RIG
-        reminderText =
-            '⚠️ CRITICAL: For Category III, you MUST also get Rabies Immunoglobulin (RIG) immediately!';
-        snackBarColor = Colors.red[800]!;
-      } else if (!isImmunized) {
-        reminderText =
-            'Dose 1 scheduled. You need ALL 5 doses (Days 0,3,7,14,28).';
-      } else {
-        reminderText = 'Dose 1 scheduled. You only need 2 doses (Days 0 & 3).';
-      }
-
-      Future.delayed(const Duration(seconds: 1), () {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(reminderText),
-            backgroundColor: snackBarColor,
-            duration: const Duration(
-              seconds: 8,
-            ), // Longer duration for importance
-            behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'OK',
-              textColor: Colors.white,
-              onPressed: () {}, // Dismisses
-            ),
-          ),
-        );
-      });
-    } catch (e) {
-      if (!mounted) return;
-      // Show error if NO appropriate record was found in the list
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Missing Vaccine Record'),
-          content: const Text(
-            'We could not find a "Rabies Post-Exposure" vaccine in your records list.\n\nPlease contact support to have this situational vaccine added to your profile so it can be scheduled.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
   }
 
   Widget _buildRabiesRecommendation(
@@ -1674,6 +1599,10 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     final bool isDue =
         vaccine.nextDueDate != null && !isScheduled && vaccine.isPending;
 
+    final bool isBooster = vaccine.totalDoses != null && vaccine.completedDoses >= vaccine.totalDoses!;
+
+    final String doseLabel = isBooster ? "Booster" : vaccine.doseDisplay;
+
     String dateText;
     Color dateColor;
     IconData dateIcon;
@@ -1749,11 +1678,14 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                vaccine.doseDisplay,
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 4),
+              if (!isBooster) 
+                Text(
+                  doseLabel,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+                
+              if (!isBooster)  const SizedBox(height: 4),
+              
               Text(
                 dateText,
                 style: TextStyle(
@@ -1838,7 +1770,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),

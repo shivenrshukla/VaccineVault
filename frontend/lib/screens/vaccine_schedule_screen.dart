@@ -19,7 +19,7 @@ class _VaccineScheduleScreenState extends State<VaccineScheduleScreen> {
   bool _isLoading = true;
   String? _error;
 
-  static const String apiBaseUrl = 'http://localhost:5000';
+  static const String apiBaseUrl = 'http://10.0.2.2:5000';
   final AuthService _authService = AuthService();
   String? _authToken;
 
@@ -110,6 +110,7 @@ class _VaccineScheduleScreenState extends State<VaccineScheduleScreen> {
         body: json.encode({'hasTaken': true}),
       );
 
+      if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
 
       if (response.statusCode == 200) {
@@ -135,6 +136,7 @@ class _VaccineScheduleScreenState extends State<VaccineScheduleScreen> {
         }
       }
     } catch (e) {
+      if (!mounted) return;
       Navigator.pop(context);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -252,10 +254,12 @@ class _VaccineScheduleScreenState extends State<VaccineScheduleScreen> {
           'Due: ${DateFormat.yMMMd().format(DateTime.parse(vaccine.nextDueDate!))}';
     }
 
+    final bool isBooster = vaccine.totalDoses != null && vaccine.completedDoses >= vaccine.totalDoses!;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),
       elevation: 4.0,
-      shadowColor: Colors.black.withOpacity(0.1),
+      shadowColor: Colors.black.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: InkWell(
         onTap: () => _showConfirmationDialog(vaccine),
@@ -283,14 +287,16 @@ class _VaccineScheduleScreenState extends State<VaccineScheduleScreen> {
                       ),
                     ),
                     const SizedBox(height: 4.0),
-                    Text(
-                      vaccine.doseDisplay,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.grey.shade700,
+                    if (!isBooster) ...[
+                      Text(
+                        vaccine.doseDisplay,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8.0),
+                      const SizedBox(height: 8.0),
+                    ],
                     Text(
                       formattedDate,
                       style: TextStyle(

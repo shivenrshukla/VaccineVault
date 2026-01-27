@@ -80,7 +80,7 @@ class _FamilyOverviewPageState extends State<FamilyOverviewPage> {
                           '${_familyMembers.length} Members',
                           style: TextStyle(
                             fontSize: 14,
-                            color: theme.colorScheme.onPrimary.withOpacity(0.8),
+                            color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -232,7 +232,7 @@ class _FamilyOverviewPageState extends State<FamilyOverviewPage> {
                       gradient: LinearGradient(
                         colors: [
                           theme.primaryColor,
-                          theme.primaryColor.withOpacity(0.7),
+                          theme.primaryColor.withValues(alpha: 0.7),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
@@ -273,7 +273,7 @@ class _FamilyOverviewPageState extends State<FamilyOverviewPage> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: theme.primaryColor.withOpacity(0.1),
+                                  color: theme.primaryColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(

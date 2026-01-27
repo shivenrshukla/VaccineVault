@@ -151,6 +151,7 @@ class _MyCertificatesScreenState extends State<MyCertificatesScreen> {
         certificate.id,
         certificate.originalFileName,
       );
+      if (!mounted) return;
       Navigator.pop(context); // Close loading
     } catch (e) {
       Navigator.pop(context); // Close loading

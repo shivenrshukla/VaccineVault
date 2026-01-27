@@ -19,7 +19,7 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
   bool _isLoading = true;
   String? _error;
 
-  static const String apiBaseUrl = 'http://localhost:5000';
+  static const String apiBaseUrl = 'http://10.0.2.2:5000';
   final AuthService _authService = AuthService();
   String? _authToken;
 
@@ -192,6 +192,8 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
         }),
       );
 
+      if (!mounted) return;
+
       Navigator.pop(context); // Close loading dialog
 
       if (response.statusCode == 200) {
@@ -217,6 +219,7 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
         }
       }
     } catch (e) {
+      if (!mounted) return;
       Navigator.pop(context);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -310,7 +313,7 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: (region['color'] as Color).withOpacity(0.1),
+                          color: (region['color'] as Color).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -467,10 +470,10 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -620,7 +623,7 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: (region['color'] as Color).withOpacity(0.1),
+                        color: (region['color'] as Color).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(

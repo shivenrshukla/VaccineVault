@@ -251,7 +251,7 @@ class _VaccineCertificateScreenState extends State<VaccineCertificateScreen> {
           ),
           if (_isLoadingFile)
             Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               child: const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

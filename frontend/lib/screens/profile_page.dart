@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/profile_service.dart';
 import '../services/family_service.dart';
 import 'family_overview_page.dart';
+import 'package:logger/logger.dart';
+import 'package:http/http.dart' as http;
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -11,6 +13,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  final logger = Logger();
   final _formKey = GlobalKey<FormState>();
   bool _isEditing = false;
   bool _isLoading = false;
@@ -18,7 +21,10 @@ class _ProfilePageState extends State<ProfilePage> {
   // Family-related state
   bool _isFamilyAdmin = false;
   int _totalFamilyMembers = 0;
-  Map<String, dynamic>? _profileData;
+
+  final client = http.Client();
+
+  final apiService = ProfileService();
 
   // Controllers
   final TextEditingController _usernameController = TextEditingController();
@@ -43,8 +49,21 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isLoading = true);
     
     try {
-      final profileData = await ApiService.getProfile();
-      _profileData = profileData;
+      final profileData = await apiService.getProfile();
+
+      // Handle null profile (not logged in)
+      if (profileData == null) {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No profile data found. Please log in again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
       
       // Check if user is a family admin (familyAdminId is null)
       final bool isAdmin = profileData['familyAdminId'] == null;
@@ -55,9 +74,9 @@ class _ProfilePageState extends State<ProfilePage> {
         try {
           final familyData = await FamilyService.getFamilyMembers();
           totalMembers = familyData.length; // Admin + family members
-        } catch (e) {
+        } catch (e, stackTrace) {
           // If error fetching family members, assume no family members
-          print('Error fetching family members: $e');
+          logger.e('Error fetching family members', error: e, stackTrace: stackTrace);
         }
       }
       
@@ -110,7 +129,7 @@ class _ProfilePageState extends State<ProfilePage> {
     };
 
     try {
-      final success = await ApiService.updateProfile(userData);
+      await apiService.updateProfile(userData);
       
       setState(() {
         _isLoading = false;
@@ -120,15 +139,14 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              success ? 'Profile updated successfully!' : 'Failed to update profile',
-            ),
-            backgroundColor: success ? const Color(0xFF9B59D0) : Colors.red,
+            content: Text('Profile updated successfully!'),
+            backgroundColor: const Color(0xFF9B59D0),
           ),
         );
       }
 
-      if (success) _loadProfile();
+      // reload profile
+      _loadProfile();
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -216,7 +234,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           child: CircleAvatar(
                             radius: 50,
-                            backgroundColor: theme.colorScheme.onPrimary.withOpacity(0.3),
+                            backgroundColor: theme.colorScheme.onPrimary.withAlpha((0.3 * 255).round()),
                             child: Text(
                               _usernameController.text.isNotEmpty
                                   ? _usernameController.text[0].toUpperCase()
@@ -239,10 +257,10 @@ class _ProfilePageState extends State<ProfilePage> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.onPrimary.withOpacity(0.2),
+                              color: theme.colorScheme.onPrimary.withAlpha((0.2 * 255).round()),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: theme.colorScheme.onPrimary.withOpacity(0.5),
+                                color: theme.colorScheme.onPrimary.withAlpha((0.5 * 255).round()),
                               ),
                             ),
                             child: Row(
@@ -522,7 +540,7 @@ class _ProfilePageState extends State<ProfilePage> {
         gradient: LinearGradient(
           colors: [
             theme.primaryColor,
-            theme.primaryColor.withOpacity(0.8),
+            theme.primaryColor.withAlpha((0.8 * 255).round()),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -530,7 +548,7 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: theme.primaryColor.withOpacity(0.3),
+            color: theme.primaryColor.withAlpha((0.3 * 255).round()),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -544,7 +562,7 @@ class _ProfilePageState extends State<ProfilePage> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withAlpha((0.2 * 255).round()),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -570,7 +588,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(
                       'Manage $_totalFamilyMembers family members',
                       style: TextStyle(
-                        color: theme.colorScheme.onPrimary.withOpacity(0.9),
+                        color: theme.colorScheme.onPrimary.withAlpha((0.9 * 255).round()),
                         fontSize: 13,
                       ),
                     ),
@@ -627,10 +645,10 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
+          color: Colors.white.withAlpha((0.2 * 255).round()),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Colors.white.withOpacity(0.3),
+            color: Colors.white.withAlpha((0.3 * 255).round()),
           ),
         ),
         child: Row(
@@ -662,8 +680,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
           title: const Text('Add Family Member'),
           content: SingleChildScrollView(
             child: Column(
@@ -922,13 +940,13 @@ class _ProfilePageState extends State<ProfilePage> {
           readOnly: onTap != null,
           onTap: onTap,
           style: TextStyle(
-            color: isEnabled ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7),
+            color: isEnabled ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withAlpha((0.7 * 255).round()),
             fontSize: 15,
           ),
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
-              color: isEnabled ? theme.primaryColor : theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+              color: isEnabled ? theme.primaryColor : theme.colorScheme.onSurfaceVariant.withAlpha((0.7 * 255).round()),
               size: 20,
             ),
             contentPadding: const EdgeInsets.symmetric(
@@ -936,7 +954,7 @@ class _ProfilePageState extends State<ProfilePage> {
               vertical: 14,
             ),
             filled: true,
-            fillColor: isEnabled ? theme.cardColor : theme.dividerColor.withOpacity(0.3),
+            fillColor: isEnabled ? theme.cardColor : theme.dividerColor.withAlpha((0.3 * 255).round()),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
@@ -954,7 +972,7 @@ class _ProfilePageState extends State<ProfilePage> {
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: theme.dividerColor.withOpacity(0.5),
+                color: theme.dividerColor.withAlpha((0.5 * 255).round()),
                 width: 1,
               ),
             ),

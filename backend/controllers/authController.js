@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import bcrypt from 'bcrypt';
+
 // Generate JWT Token
 export const generateToken = (user) => {
     return jwt.sign(
@@ -10,12 +11,12 @@ export const generateToken = (user) => {
     );
 }
 
-// Register a new user
+// User registration
 export const register = async (req, res) => {
     try {
         const {
             username,
-            password, // This is the plain-text password
+            password,
             email,
             gender,
             dateOfBirth,
@@ -30,30 +31,28 @@ export const register = async (req, res) => {
             familyAdminId,
             relationshipToAdmin, 
             medicalConditions
-        } = req.body; // Get all fields from req.body
+        } = req.body;
 
-        // ... (Keep all your existing validation checks here)
-        if (!username || !password || !email /* ...etc */) {
+        if (!username || !password || !email || !gender || !dateOfBirth || !addressPart1 || !city || !state || !pinCode || !phoneNumber) {
             return res.status(400).json({ message: "All required fields must be filled" });
         }
+        
+        // Check if username or email already exists
         const existingUserByEmail = await User.findOne({ where: { email } });
         if (existingUserByEmail) {
             return res.status(400).json({ message: "An account with this email already exists" });
         }
-        // ... (etc.)
 
-        // --- THIS IS THE CRITICAL PART ---
-
-        // 1. HASH THE PASSWORD
+        // 1. Hash the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // 2. CREATE NEW USER
+        // 2. Create new user
         //    Make sure to use 'password: hashedPassword'
         //    and include ALL other fields from req.body.
         const newUser = await User.create({
             username,
-            password: hashedPassword, // <-- Use the hashed password here
+            password: hashedPassword,
             email,
             gender,
             dateOfBirth,
@@ -69,9 +68,8 @@ export const register = async (req, res) => {
             relationshipToAdmin,
             medicalConditions: medicalConditions || null
         });
-        
-        // --- END OF FIX ---
 
+        // 3. Generate token and respond
         const token = generateToken(newUser);
         res.status(201).json({
             message: "User registered successfully",
@@ -84,7 +82,8 @@ export const register = async (req, res) => {
         res.status(500).json({ message: "Internal server error", error: error.message });
     }
 };
-// Login an existing user
+
+// User login
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -101,9 +100,7 @@ export const login = async (req, res) => {
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        // ✅ COMPARE THE HASH
-        // This securely compares the plain-text 'password' from the request
-        // with the 'user.password' hash stored in your database.
+        // Compare provided password with stored hashed password
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {
@@ -141,6 +138,7 @@ export const getProfile = async (req, res) => {
     }
 };
 
+// Update user profile (protected route)
 export const updateProfile = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -250,8 +248,8 @@ export const changePassword = async (req, res) => {
             return res.status(400).json({ message: "Both current and new passwords are required" });
         }
 
-        if (newPassword.length < 6) { // You can keep this check
-             return res.status(400).json({ message: "New password must be at least 6 characters long" });
+        if (newPassword.length < 6) {
+            return res.status(400).json({ message: "New password must be at least 6 characters long" });
         }
 
         // Find the user
@@ -261,17 +259,17 @@ export const changePassword = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // ✅ COMPARE HASH FOR CURRENT PASSWORD
+        // Verify current password
         const isMatch = await bcrypt.compare(currentPassword, user.password);
         if (!isMatch) {
             return res.status(401).json({ message: "Incorrect current password" });
         }
 
-        // ✅ HASH THE NEW PASSWORD
+        // Hash the new password
         const salt = await bcrypt.genSalt(10);
         const hashedNewPassword = await bcrypt.hash(newPassword, salt);
 
-        // ✅ UPDATE THE PASSWORD
+        // Update the password
         await user.update({ password: hashedNewPassword });
 
         res.status(200).json({ message: "Password updated successfully" });
@@ -281,6 +279,7 @@ export const changePassword = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
+
 export const logout = (req, res) => {
     try {
         res.status(200).json({ message: "Logged out successfully" });

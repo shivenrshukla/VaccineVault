@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_app_file/open_app_file.dart';
+import 'package:logger/logger.dart';
 
 // Import your models
 import '../models/vaccine_record.dart';
@@ -10,8 +11,9 @@ import '../models/vaccine_record.dart';
 import './auth_service.dart'; // Adjust path if needed
 
 class CertificateService {
+  final logger = Logger();
   // ⚠️ Make sure this URL is correct for your setup (see note below)
-  final Dio _dio = Dio(BaseOptions(baseUrl: 'http://localhost:5000'));
+  final Dio _dio = Dio(BaseOptions(baseUrl: 'http://10.0.2.2:5000'));
 
   // ✅ ADD AN INSTANCE OF YOUR AUTH SERVICE
   final AuthService _authService = AuthService();
@@ -46,7 +48,7 @@ class CertificateService {
         throw Exception('Failed to load certificates');
       }
     } on DioException catch (e) {
-      print('Error in getAllCertificates: $e');
+      logger.e('Error in getAllCertificates: $e');
       throw Exception('Failed to load certificates: ${e.message}');
     }
   }
@@ -89,7 +91,7 @@ class CertificateService {
         throw Exception('Failed to upload file');
       }
     } on DioException catch (e) {
-      print('Error in uploadCertificate: $e');
+      logger.e('Error in uploadCertificate: $e');
       throw Exception('Failed to upload file: ${e.message}');
     }
   }
@@ -118,7 +120,7 @@ class CertificateService {
         throw Exception('Could not open file: ${result.message}');
       }
     } on DioException catch (e) {
-      print('Error in downloadAndOpenFile: $e');
+      logger.e('Error in downloadAndOpenFile: $e');
       throw Exception('Failed to open file: ${e.message}');
     }
   }

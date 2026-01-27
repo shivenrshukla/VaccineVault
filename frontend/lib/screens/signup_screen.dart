@@ -100,8 +100,10 @@ class SignupScreenState extends State<SignupScreen> {
         phoneNumber: _phoneController.text,
       );
 
+      Map<String, dynamic> newUserMap = newUser.toJson();
+
       try {
-        await _authService.register(newUser);
+        await _authService.register(newUserMap);
 
         if (!mounted) return;
 
