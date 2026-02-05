@@ -8,15 +8,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
 
-// 4. Read the file and parse it into a JavaScript object
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-
-// Use the key to initialize the Firebase Admin SDK
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-
-console.log('✅ Firebase Admin SDK initialized.');
+if (fs.existsSync(serviceAccountPath)) {
+  try {
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('✅ Firebase Admin SDK initialized.');
+  } catch (error) {
+    console.error('❌ Error parsing Firebase service account JSON:', error.message);
+  }
+} else {
+  console.warn('⚠️ Firebase service account file not found. Firebase features will be disabled.');
+}
 
 // Export the initialized 'admin' object
 export default admin;

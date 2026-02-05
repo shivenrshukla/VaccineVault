@@ -19,6 +19,7 @@
     "start:api": "node index.js",
     "start:worker": "node workers/reminderWorker.js",
     "start:scheduler": "node services/reminderScheduler.js",
+    "start:docker": "npm-run-all --parallel start:api start:worker start:scheduler",
     "start": "npm-run-all --parallel start:redis start:api start:worker start:scheduler",
     "dev:redis": "redis-server",
     "dev:api": "nodemon index.js",
@@ -45,7 +46,6 @@
     "nodemailer": "^7.0.9",
     "pg": "^8.16.3",
     "pg-hstore": "^2.3.4",
-    "redis-server": "^1.2.2",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {

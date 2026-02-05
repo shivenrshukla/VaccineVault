@@ -1,5 +1,5 @@
 import User from "../models/User.js";
-import UserVaccine from "../models/userVaccine.js";
+import UserVaccine from "../models/UserVaccine.js";
 import Vaccine from "../models/Vaccine.js";
 import { Op } from "sequelize";
 
