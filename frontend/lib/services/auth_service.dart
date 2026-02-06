@@ -6,13 +6,16 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:logger/logger.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://10.0.2.2:5000/api/auth';
+  static const String baseUrl = 'http://localhost:5000/api/auth';
   static const storage = FlutterSecureStorage();
   static const String _tokenKey = 'jwt_token';
   final logger = Logger();
 
   Future<void> setBiometricEnabled(bool enabled) async {
-    await storage.write(key: 'biometric_enabled', value: enabled ? 'true' : 'false');
+    await storage.write(
+      key: 'biometric_enabled',
+      value: enabled ? 'true' : 'false',
+    );
   }
 
   Future<bool> isBiometricEnabled() async {
@@ -46,7 +49,7 @@ class AuthService {
       } else {
         logger.d('Login failed with status code: ${response.statusCode}');
         logger.d('Response body: ${response.body}');
-        
+
         // Parse the error message from the server
         String errorMessage = 'Invalid username or password';
         try {
@@ -57,7 +60,7 @@ class AuthService {
         } catch (_) {
           // Ignore if body isn't JSON
         }
-        
+
         // THROW the error. This will be caught by the LoginScreen.
         throw Exception(errorMessage);
       }
@@ -73,9 +76,7 @@ class AuthService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/register'),
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(userData), // Send the entire user object
       );
 
@@ -92,12 +93,12 @@ class AuthService {
         return true;
       }
 
-      logger.e('Registration failed with status code: ${response.statusCode} and body: ${response.body}');
+      logger.e(
+        'Registration failed with status code: ${response.statusCode} and body: ${response.body}',
+      );
       return false;
     } catch (e) {
-      logger.e(
-        'Register error: $e',
-        );
+      logger.e('Register error: $e');
       return false;
     }
   }
@@ -109,7 +110,9 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_tokenKey, token);
 
-        logger.w('Using SharedPreferences for token storage on web; not secure!');
+        logger.w(
+          'Using SharedPreferences for token storage on web; not secure!',
+        );
       } else {
         // Mobile/Desktop: use secure storage
         await storage.write(key: _tokenKey, value: token);

@@ -19,7 +19,7 @@ class _VaccineScheduleScreenState extends State<VaccineScheduleScreen> {
   bool _isLoading = true;
   String? _error;
 
-  static const String apiBaseUrl = 'http://10.0.2.2:5000';
+  static const String apiBaseUrl = 'http://localhost:5000';
   final AuthService _authService = AuthService();
   String? _authToken;
 
@@ -254,7 +254,9 @@ class _VaccineScheduleScreenState extends State<VaccineScheduleScreen> {
           'Due: ${DateFormat.yMMMd().format(DateTime.parse(vaccine.nextDueDate!))}';
     }
 
-    final bool isBooster = vaccine.totalDoses != null && vaccine.completedDoses >= vaccine.totalDoses!;
+    final bool isBooster =
+        vaccine.totalDoses != null &&
+        vaccine.completedDoses >= vaccine.totalDoses!;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),

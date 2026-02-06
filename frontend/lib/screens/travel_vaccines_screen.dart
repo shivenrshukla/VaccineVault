@@ -19,7 +19,7 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
   bool _isLoading = true;
   String? _error;
 
-  static const String apiBaseUrl = 'http://10.0.2.2:5000';
+  static const String apiBaseUrl = 'http://localhost:5000';
   final AuthService _authService = AuthService();
   String? _authToken;
 
@@ -313,7 +313,9 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: (region['color'] as Color).withValues(alpha: 0.1),
+                          color: (region['color'] as Color).withValues(
+                            alpha: 0.1,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -623,7 +625,9 @@ class _TravelVaccinesScreenState extends State<TravelVaccinesScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: (region['color'] as Color).withValues(alpha: 0.1),
+                        color: (region['color'] as Color).withValues(
+                          alpha: 0.1,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(

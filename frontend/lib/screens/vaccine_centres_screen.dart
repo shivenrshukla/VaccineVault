@@ -28,7 +28,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   List<VaccinationCenter> _centers = [];
 
   final AuthService _authService = AuthService();
-  static const String apiBaseUrl = 'http://10.0.2.2:5000'; // Your API URL
+  static const String apiBaseUrl = 'http://localhost:5000'; // Your API URL
 
   @override
   void initState() {
@@ -47,7 +47,9 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
     if (canLaunch) {
       await launchUrl(uri);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not launch $urlScheme')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not launch $urlScheme')));
     }
   }
 
@@ -208,11 +210,11 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         final errorData = json.decode(response.body);
         // Sometimes your backend returns 200 with a "warning" or "message" but empty centers
         if (errorData['centers'] != null) {
-             setState(() {
-               _centers = [];
-               _isLoading = false;
-             });
-             return;
+          setState(() {
+            _centers = [];
+            _isLoading = false;
+          });
+          return;
         }
         throw Exception(errorData['error'] ?? 'Failed to load centers');
       }
@@ -632,7 +634,9 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF8B5FBF).withValues(alpha: 0.2)),
+          border: Border.all(
+            color: const Color(0xFF8B5FBF).withValues(alpha: 0.2),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),

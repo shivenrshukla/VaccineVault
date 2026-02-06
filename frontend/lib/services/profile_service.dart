@@ -4,16 +4,17 @@ import './auth_service.dart';
 import 'package:logger/logger.dart';
 
 class ProfileService {
-  final String baseUrl = 'http://10.0.2.2:5000/api/auth';
-  final AuthService authService = AuthService();    // Instance of AuthService
+  final String baseUrl = 'http://localhost:5000/api/auth';
+  final AuthService authService = AuthService(); // Instance of AuthService
   final http.Client client;
   final logger = Logger();
 
-  ProfileService({
-    http.Client? client,
-  }) : client = client ?? http.Client();
+  ProfileService({http.Client? client}) : client = client ?? http.Client();
 
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     try {
       final token = await authService.getToken();
       if (token == null) {
@@ -58,7 +59,7 @@ class ProfileService {
   Future<Map<String, dynamic>?> getProfile() async {
     try {
       // Get token from AuthService
-      final token = await authService.getToken(); 
+      final token = await authService.getToken();
       if (token == null || token.isEmpty) {
         logger.w('No profile found: User is not logged in.');
         return null;
@@ -77,7 +78,9 @@ class ProfileService {
       }
 
       if (response.statusCode == 401) {
-        logger.w('Unauthorized access when fetching profile. Token may be invalid or expired.');
+        logger.w(
+          'Unauthorized access when fetching profile. Token may be invalid or expired.',
+        );
         await authService.clearToken();
         return null;
       }
@@ -111,9 +114,13 @@ class ProfileService {
       }
 
       if (response.statusCode == 401) {
-        logger.w('Unauthorized access when updating profile.Token may be invalid or expired.');
+        logger.w(
+          'Unauthorized access when updating profile.Token may be invalid or expired.',
+        );
         await authService.clearToken();
-        throw Exception('Unauthorized: Please log in again to update your profile.');
+        throw Exception(
+          'Unauthorized: Please log in again to update your profile.',
+        );
       }
 
       logger.e('Failed to update profile. Status code: ${response.statusCode}');

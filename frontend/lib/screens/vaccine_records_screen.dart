@@ -49,7 +49,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   String? _error;
   _DisplayCategory _selectedCategory = _DisplayCategory.pending;
 
-  static const String apiBaseUrl = 'http://10.0.2.2:5000';
+  static const String apiBaseUrl = 'http://localhost:5000';
   final AuthService _authService = AuthService();
   String? _authToken;
 
@@ -182,9 +182,11 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     required bool isImmunized,
     required _RabiesCategory category,
   }) async {
-    // 1. Show loading
+    // 1. Close the assessment dialog immediately
     if (!mounted) return;
-    Navigator.pop(context); // Close the assessment dialog first
+    Navigator.pop(context);
+
+    // 2. Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -193,8 +195,6 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     );
 
     try {
-      // 2. Call Backend
-      // NOTE: You need to implement this endpoint on your backend!
       final response = await http.post(
         Uri.parse('$apiBaseUrl/api/vaccines/situational/schedule-rabies'),
         headers: {
@@ -204,33 +204,56 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
         body: json.encode({
           'exposureDate': exposureDate.toIso8601String().split('T')[0],
           'isPreviouslyImmunized': isImmunized,
-          'exposureCategory': category.name, // 'catII' or 'catIII'
+          'exposureCategory': category.name,
         }),
       );
 
-      // 3. Handle Response
+      // 3. Close loading indicator
       if (!mounted) return;
-      Navigator.pop(context); // Close loading
+      Navigator.pop(context);
 
+      // --- HANDLE SUCCESS (201) ---
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✓ Rabies schedule created successfully!'),
+            content: const Text('✓ Rabies schedule created!'),
             backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // 4. Switch to Pending tab to show new doses
         setState(() {
           _selectedCategory = _DisplayCategory.pending;
         });
-        _fetchVaccines(); // Reload data
-      } else {
+        _fetchVaccines();
+      }
+      // --- HANDLE DUPLICATE (409) ---
+      else if (response.statusCode == 409) {
+        // This is the specific fix for your error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '⚠ You already have an active Rabies schedule.',
+            ),
+            backgroundColor: Colors.orange[800],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // Automatically switch tabs so they can see the existing schedule
+        setState(() {
+          _selectedCategory = _DisplayCategory.pending;
+        });
+        _fetchVaccines();
+      }
+      // --- HANDLE OTHER ERRORS ---
+      else {
         throw Exception('Failed to create schedule: ${response.body}');
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading if still open
+      // If the loading dialog is still up (in case of network error), pop it
+      if (Navigator.canPop(context)) Navigator.pop(context);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
@@ -325,7 +348,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   }
 
   void _showMarkAsTakenDialog(VaccineRecord vaccine) {
-    final bool isBooster = vaccine.totalDoses != null && vaccine.completedDoses >= vaccine.totalDoses!;
+    final bool isBooster =
+        vaccine.totalDoses != null &&
+        vaccine.completedDoses >= vaccine.totalDoses!;
     int selectedDoses = 1;
     DateTime selectedSpecificDate = DateUtils.dateOnly(
       DateTime.now().subtract(const Duration(days: 7)),
@@ -431,7 +456,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    isBooster? 'Record Booster' : 'Mark as Already Taken',
+                    isBooster ? 'Record Booster' : 'Mark as Already Taken',
                     style: TextStyle(fontSize: 18),
                   ),
                 ),
@@ -502,14 +527,13 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                                 value?.numberOfDoses ??
                                 (vaccine.totalDoses ?? 1);
 
-                                // If it's NOT a booster, adjust the dropdown logic
-                                if (!isBooster) {
-                                  if (selectedDoses > totalDosesForDisplay) {
-                                    selectedDoses = totalDosesForDisplay;
-                                  }
-                                }
+                            // If it's NOT a booster, adjust the dropdown logic
+                            if (!isBooster) {
+                              if (selectedDoses > totalDosesForDisplay) {
+                                selectedDoses = totalDosesForDisplay;
+                              }
                             }
-                          );
+                          });
                         },
                       ),
                     ),
@@ -978,7 +1002,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                     'Select Exposure Category:',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  
+
                   // FIX 2: Restored standard RadioListTile logic
                   RadioListTile<_RabiesCategory>(
                     title: const Text(
@@ -996,7 +1020,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                       setStateDialog(() => selectedCategory = val);
                     },
                   ),
-                  
+
                   RadioListTile<_RabiesCategory>(
                     title: const Text(
                       'Category III (Severe)',
@@ -1599,7 +1623,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
     final bool isDue =
         vaccine.nextDueDate != null && !isScheduled && vaccine.isPending;
 
-    final bool isBooster = vaccine.totalDoses != null && vaccine.completedDoses >= vaccine.totalDoses!;
+    final bool isBooster =
+        vaccine.totalDoses != null &&
+        vaccine.completedDoses >= vaccine.totalDoses!;
 
     final String doseLabel = isBooster ? "Booster" : vaccine.doseDisplay;
 
@@ -1678,14 +1704,14 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              if (!isBooster) 
+              if (!isBooster)
                 Text(
                   doseLabel,
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
-                
-              if (!isBooster)  const SizedBox(height: 4),
-              
+
+              if (!isBooster) const SizedBox(height: 4),
+
               Text(
                 dateText,
                 style: TextStyle(
@@ -1770,7 +1796,9 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+            border: Border.all(
+              color: const Color(0xFF10B981).withValues(alpha: 0.3),
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),

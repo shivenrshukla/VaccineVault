@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import './auth_service.dart';
 
 class FamilyService {
-  static const String baseUrl = 'http://10.0.2.2:5000'; // Replace with your actual API URL
+  static const String baseUrl =
+      'http://localhost:5000'; // Replace with your actual API URL
   static final AuthService _authService = AuthService();
 
   // --- Family Management Methods (from original file) ---
@@ -86,7 +87,9 @@ class FamilyService {
   }
 
   // Get vaccines for a specific family member
-  static Future<Map<String, dynamic>> getFamilyMemberVaccines(int memberId) async {
+  static Future<Map<String, dynamic>> getFamilyMemberVaccines(
+    int memberId,
+  ) async {
     final token = await _authService.getToken();
     if (token == null) throw Exception('No authentication token found');
 
@@ -177,7 +180,10 @@ class FamilyService {
 
   /// Marks a specific vaccine as completed.
   /// Based on: PUT /status/:userVaccineId
-  static Future<bool> markVaccineAsDone(int vaccineId, String administeredDate) async {
+  static Future<bool> markVaccineAsDone(
+    int vaccineId,
+    String administeredDate,
+  ) async {
     final token = await _authService.getToken();
     if (token == null) throw Exception('No authentication token found');
 
@@ -203,7 +209,10 @@ class FamilyService {
 
   /// Schedules a due date for a vaccine.
   /// Based on: PUT /schedule/:userVaccineId
-  static Future<bool> scheduleVaccine(int vaccineId, String scheduledDate) async {
+  static Future<bool> scheduleVaccine(
+    int vaccineId,
+    String scheduledDate,
+  ) async {
     final token = await _authService.getToken();
     if (token == null) throw Exception('No authentication token found');
 
@@ -213,9 +222,7 @@ class FamilyService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: json.encode({
-        'scheduledDate': scheduledDate,
-      }),
+      body: json.encode({'scheduledDate': scheduledDate}),
     );
 
     if (response.statusCode == 200) {
