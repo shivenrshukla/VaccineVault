@@ -4,53 +4,51 @@ services:
     container_name: vaccinevault_db
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: ${DB_NAME:-vaccinevault}
+      # CHANGE THESE TO USE VARIABLES:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vaccinevault}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # ... redis service remains the same ...
   redis:
-    image: redis:7-alpine
-    container_name: vaccinevault_redis
-    restart: always
-    ports:
-      - "6379:6379"
 
+    image: redis:7-alpine
+
+    container_name: vaccinevault_redis
+
+    restart: always
+
+    ports:
+
+      - "6379:6379"
   backend:
     build: ./backend
     container_name: vaccinevault_backend
     restart: always
     depends_on:
       db:
-        condition: service_healthy # Wait for DB to be fully ready
+        condition: service_healthy
       redis:
         condition: service_started
     environment:
       - PORT=5000
       - DB_HOST=db
-      - DB_PORT=5432
+      - DB_PORT=${DB_PORT}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - JWT_SECRET=${JWT_SECRET}
-      - MAPMYINDIA_CLIENT_ID=${MAPMYINDIA_CLIENT_ID}
-      - MAPMYINDIA_CLIENT_SECRET=${MAPMYINDIA_CLIENT_SECRET}
-      - MAPMYINDIA_ACCESS_TOKEN=${MAPMYINDIA_ACCESS_TOKEN}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - MAPBOX_ACCESS_TOKEN=${MAPBOX_ACCESS_TOKEN}
-      - EMAIL_USER=${EMAIL_USER}
-      - EMAIL_PASS=${EMAIL_PASS}
-      # Add other environment variables (JWT_SECRET, mailer configs, etc.) here
+      - REDIS_PORT=${REDIS_PORT}
+      # ... keep the rest of your env vars ...
     ports:
       - "5000:5000"
 

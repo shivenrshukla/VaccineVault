@@ -16,4 +16,7 @@ EXPOSE 5000
 
 # Start the application using the "start" script from package.json
 # This runs the API, worker, and scheduler in parallel
-CMD ["npm", "run", "start:docker"]
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+CMD ["./entrypoint.sh"]

@@ -503,15 +503,14 @@ export const createSituationalSchedule = async (req, res) => {
     const {
       exposureDate,
       isPreviouslyImmunized,
-      exposureCategory, // 'catII' or 'catIII'
+      exposureCategory, 
     } = req.body;
 
     if (!exposureDate) {
       return res.status(400).json({ message: 'exposureDate is required' });
     }
 
-    // 1. Determine which Rabies schedule to use based on immunization status
-    // This logic maps directly to your seeder file
+    // --- 1. Select the Correct Schedule Template ---
     const brandName = isPreviouslyImmunized
       ? 'Previously Immunized Schedule'
       : 'Unimmunized Schedule (IM)';
@@ -524,13 +523,12 @@ export const createSituationalSchedule = async (req, res) => {
     });
 
     if (!vaccineTemplate) {
-      console.error(`Missing Rabies template for: ${brandName}`);
-      return res
-        .status(500)
-        .json({ message: 'Rabies schedule template not found on server.' });
+      return res.status(500).json({ 
+        message: 'System error: Rabies schedule template not found.' 
+      });
     }
 
-    // 2. Check if a pending schedule for this *exact* template already exists
+    // --- 2. Check for Duplicates ---
     const existingSchedule = await UserVaccine.findOne({
       where: {
         userId: userId,
@@ -540,27 +538,34 @@ export const createSituationalSchedule = async (req, res) => {
     });
 
     if (existingSchedule) {
-      return res
-        .status(409) // 409 Conflict
-        .json({ message: 'A pending post-exposure schedule already exists.' });
+      return res.status(409).json({ 
+        message: 'A pending post-exposure schedule already exists.' 
+      });
     }
 
-    // 3. Create the new UserVaccine record
-    // This record represents the *entire series* (e.g., all 5 doses)
+    // --- 3. Create & Schedule in ONE Step ---
+    // We do not need to call scheduleVaccine() because we set 'nextDueDate' here.
     const newUserVaccine = await UserVaccine.create({
       userId: userId,
-      vaccineId: vaccineTemplate.id, // Links directly to the brand/schedule
+      vaccineId: vaccineTemplate.id,
       status: 'pending',
-      nextDueDate: exposureDate, // Day 0 is the first due date
+      
+      // ✅ SCHEDULING HAPPENS HERE:
+      nextDueDate: exposureDate, // Day 0 is strictly the exposure date
+      
       lastDoseDate: null,
       completedDoses: 0,
-      totalDoses: vaccineTemplate.numberOfDoses, // Will be 2 or 5
-      brandTakenId: null, // Not needed, vaccineId *is* the brand
+      totalDoses: vaccineTemplate.numberOfDoses,
+      
+      // ✅ CRITICAL: Save metadata so we can calculate Day 3, 7, etc. later
+      notes: JSON.stringify({
+        exposureDate: exposureDate,
+        category: exposureCategory
+      })
     });
 
-    // 4. Send back the newly created record
-    // The frontend will call _fetchVaccines() and this will appear
     res.status(201).json(newUserVaccine);
+
   } catch (error) {
     console.error('Error creating situational schedule:', error);
     return res.status(500).json({

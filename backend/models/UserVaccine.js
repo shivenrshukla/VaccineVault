@@ -11,7 +11,6 @@ const UserVaccine = sequelize.define('UserVaccine', {
     lastDoseDate: { type: DataTypes.DATEONLY, allowNull: true },
     completedDoses: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     
-    // ✅ --- NEW FIELDS ---
     totalDoses: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -21,12 +20,17 @@ const UserVaccine = sequelize.define('UserVaccine', {
         type: DataTypes.INTEGER,
         allowNull: true,
         references: {
-            model: 'Vaccines', // This must be the table name
+            model: 'Vaccines',
             key: 'id'
-        },
-        comment: 'FK to the Vaccine (brand) that was administered.'
+        }
+    },
+    // ✅ ADD THIS FIELD
+    notes: {
+        type: DataTypes.TEXT, // Using TEXT to store JSON string
+        allowNull: true,
+        comment: 'Stores metadata like exposureDate for Rabies calculation'
     }
-    // ✅ --- END NEW FIELDS ---
+    // ✅ END NEW FIELD
 }, {
     timestamps: true
 });
@@ -34,15 +38,12 @@ const UserVaccine = sequelize.define('UserVaccine', {
 User.hasMany(UserVaccine, { foreignKey: 'userId' });
 UserVaccine.belongsTo(User, { foreignKey: 'userId' });
 
-// This is the "disease" (generic vaccine)
 Vaccine.hasMany(UserVaccine, { foreignKey: 'vaccineId' });
 UserVaccine.belongsTo(Vaccine, { foreignKey: 'vaccineId' });
 
-// ✅ --- NEW ASSOCIATION ---
-// This is the specific "brand" that was taken
 UserVaccine.belongsTo(Vaccine, { as: 'BrandTaken', foreignKey: 'brandTakenId' });
-// ✅ --- END NEW ASSOCIATION ---
 
 UserVaccine.hasMany(VaccineCertificate, { foreignKey: 'userVaccineId' });
 VaccineCertificate.belongsTo(UserVaccine, { foreignKey: 'userVaccineId' });
+
 export default UserVaccine;
