@@ -28,7 +28,7 @@ class _VaccineCentresScreenState extends State<VaccineCentresScreen> {
   List<VaccinationCenter> _centers = [];
 
   final AuthService _authService = AuthService();
-  static const String apiBaseUrl = 'http://localhost:5000'; // Your API URL
+  static const String apiBaseUrl = 'http://vvault.spit.ac.in:5001'; // Your API URL
 
   @override
   void initState() {

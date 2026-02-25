@@ -4,7 +4,7 @@ import './auth_service.dart';
 import 'package:logger/logger.dart';
 
 class ProfileService {
-  final String baseUrl = 'http://localhost:5000/api/auth';
+  final String baseUrl = 'http://vvault.spit.ac.in:5001/api/auth';
   final AuthService authService = AuthService(); // Instance of AuthService
   final http.Client client;
   final logger = Logger();

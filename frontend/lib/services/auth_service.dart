@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:logger/logger.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:5000/api/auth';
+  static const String baseUrl = 'http://vvault.spit.ac.in:5001/api/auth';
   static const storage = FlutterSecureStorage();
   static const String _tokenKey = 'jwt_token';
   final logger = Logger();

@@ -49,7 +49,7 @@ class _VaccineRecordsScreenState extends State<VaccineRecordsScreen> {
   String? _error;
   _DisplayCategory _selectedCategory = _DisplayCategory.pending;
 
-  static const String apiBaseUrl = 'http://localhost:5000';
+  static const String apiBaseUrl = 'http://vvault.spit.ac.in:5001';
   final AuthService _authService = AuthService();
   String? _authToken;
 

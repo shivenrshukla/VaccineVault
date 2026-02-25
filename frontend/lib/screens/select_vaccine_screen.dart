@@ -17,7 +17,7 @@ class _SelectVaccineScreenState extends State<SelectVaccineScreen> {
   bool _isLoading = true;
   String? _error;
 
-  static const String apiBaseUrl = 'http://localhost:5000';
+  static const String apiBaseUrl = 'http://vvault.spit.ac.in:5001';
   final AuthService _authService = AuthService();
 
   @override
