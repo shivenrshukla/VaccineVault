@@ -4,7 +4,7 @@ import './auth_service.dart';
 
 class FamilyService {
   static const String baseUrl =
-      'http://localhost:5000'; // Replace with your actual API URL
+      'http://vvault.spit.ac.in:5001'; // Replace with your actual API URL
   static final AuthService _authService = AuthService();
 
   // --- Family Management Methods (from original file) ---

@@ -13,7 +13,7 @@ import './auth_service.dart'; // Adjust path if needed
 class CertificateService {
   final logger = Logger();
   // ⚠️ Make sure this URL is correct for your setup (see note below)
-  final Dio _dio = Dio(BaseOptions(baseUrl: 'http://localhost:5000'));
+  final Dio _dio = Dio(BaseOptions(baseUrl: 'http://vvault.spit.ac.in:5001'));
 
   // ✅ ADD AN INSTANCE OF YOUR AUTH SERVICE
   final AuthService _authService = AuthService();
