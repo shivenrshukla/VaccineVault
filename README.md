@@ -1,6 +1,5 @@
 # 🛡️ VaccineVault
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT)
 [![Backend: Express](https://img.shields.io/badge/Backend-Express.js-2d3748.svg?logo=express)](https://expressjs.com/)
 [![Database: PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-3182ce.svg?logo=postgresql)](https://www.postgresql.org/)
 [![Caching: Redis](https://img.shields.io/badge/Caching-Redis-ef4444.svg?logo=redis)](https://redis.io/)
